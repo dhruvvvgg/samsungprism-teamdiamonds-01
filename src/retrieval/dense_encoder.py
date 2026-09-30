@@ -64,8 +64,7 @@ def linear_census(module):
     for name, m in module.named_modules():
         if isinstance(m, torch.nn.Linear):
             fp32.append(name)
-        elif m.__class__.__name__ in ("Linear", "LinearPackedParams") and \
-                "quantized" in type(m).__module__:
+        elif m.__class__.__name__ == "Linear" and "quantized" in type(m).__module__:
             quantized.append(name)
     return fp32, quantized
 
@@ -229,28 +228,23 @@ class DenseEncoder:
                 raise FloatingPointError("Model produced non-finite embeddings even in fp32.")
         return out
 
-    def quantize_dynamic_int8(self, strict=True):
+    def quantize_dynamic_int8(self, strict=True, allow_lossy_int8=False):
         """Dynamically quantise Linear layers to int8, in place (CPU only). Returns True if applied.
 
         Dynamic quantisation keeps activations in fp32 and quantises weights per tensor, so it needs no
-        calibration data. It roughly quarters the weight memory of the Linear layers, but for an
-        *embedding* model the risk is not speed, it is fidelity: the output vector is compared by cosine
-        similarity, and per-tensor int8 weights can move it enough to reorder the top-10. Another team
-        reported exactly that for Qwen-based embedders (F2LLM-v2 is Qwen3), so this is off by default
-        and src/check_cpu_precision.py exists to measure it rather than trust it.
-
-        Two things here are the fix for a measured bug, not defensive decoration. A first attempt
-        quantised with the default inplace=False and assigned the *copy* back; the result was int8
-        output identical to fp32 to six decimal places, unchanged latency and +5.4 GB of RAM -- i.e. a
-        second model had been built while the original went on doing the encoding. So:
-
-          * inplace=True, so there is one model rather than two, and the freed fp32 weights are the
-            point of the exercise rather than an extra copy of them;
-          * a census afterwards that RAISES if any nn.Linear survived (strict=True). A quantisation
-            that silently does nothing is worse than one that fails: it produces numbers labelled
-            "int8" that were really fp32, which is exactly what happened.
+        calibration data. However, real CPU tests on the full 1.7B model showed severe quality degradation
+        (cosine to fp32 0.068, top-10 overlap 0.01, rank-1 changed on 19 of 20 queries). Therefore int8
+        must fail closed unless explicitly permitted via allow_lossy_int8=True.
         """
         self._check_alive()
+        if not allow_lossy_int8:
+            msg = ("int8 dynamic quantisation is rejected: real CPU tests show severe quality degradation "
+                   "(cosine to fp32 0.068, top-10 overlap 0.01, rank-1 changed 19/20). "
+                   "Pass allow_lossy_int8=True to explicitly permit lossy int8.")
+            raise RuntimeError(msg)
+        print("[dense] WARNING: --allow-lossy-int8 enabled. Real CPU test, full 1.7B model, 20 APPS queries: "
+              "fp32 7,994 ms p50; int8 5,976 ms but cosine to fp32 0.068, top-10 overlap 0.01, "
+              "rank-1 changed on 19 of 20 queries.", flush=True)
         import gc
 
         import torch

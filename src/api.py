@@ -11,7 +11,7 @@ Configuration is environment-driven so the Docker image needs no arguments:
     SEARCH_DEVICE     cpu (default) or cuda
     SEARCH_THREADS    CPU threads (default: physical cores)
     CPU_DTYPE         fp32 (default) or bf16
-    INT8              1 for dynamic int8 quantisation (measure it first)
+    INT8              rejected and disabled (fails closed due to severe quality degradation)
     MAX_QUERY_TOKENS  cap the query length (default 1024, the measured serving cap;
                       0 = uncapped). Documents are never truncated
     QUERY_CACHE       0 to turn off the exact-query embedding cache (default on, 128 entries;
@@ -99,7 +99,7 @@ def service_for(index):
                 threads=(int(os.environ["SEARCH_THREADS"]) if os.environ.get("SEARCH_THREADS")
                          else None),
                 cpu_dtype=os.environ.get("CPU_DTYPE", "fp32"),
-                int8=os.environ.get("INT8") == "1",
+                int8=False,
                 max_query_tokens=resolve_query_cap(
                     int(os.environ["MAX_QUERY_TOKENS"]) if os.environ.get("MAX_QUERY_TOKENS")
                     else None),
@@ -159,7 +159,7 @@ def get_service():
                                      threads=(int(os.environ["SEARCH_THREADS"])
                                               if os.environ.get("SEARCH_THREADS") else None),
                                      cpu_dtype=os.environ.get("CPU_DTYPE", "fp32"),
-                                     int8=os.environ.get("INT8") == "1",
+                                     int8=False,
                                      max_query_tokens=resolve_query_cap(
                                          int(os.environ["MAX_QUERY_TOKENS"])
                                          if os.environ.get("MAX_QUERY_TOKENS") else None),

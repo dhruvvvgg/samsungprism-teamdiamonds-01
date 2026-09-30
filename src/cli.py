@@ -63,8 +63,10 @@ def add_args(ap):
                     help="CPU weight precision. bf16 halves weight memory; whether it is faster "
                          "depends on the CPU having native bf16 (measure it)")
     ap.add_argument("--int8", action="store_true",
-                    help="dynamic int8 quantisation of Linear layers. OFF by default: it can reorder "
-                         "the top-10 for Qwen-based embedders -- run src/check_cpu_precision.py first")
+                    help="dynamic int8 quantisation of Linear layers. REJECTED by default due to severe "
+                         "retrieval quality degradation -- requires --allow-lossy-int8 to run")
+    ap.add_argument("--allow-lossy-int8", action="store_true",
+                    help="explicitly allow lossy int8 mode despite severe quality drop")
     ap.add_argument("--max-query-tokens", type=int, default=None,
                     help=f"truncate the query at this many tokens "
                          f"(default: {DEFAULT_SERVING_QUERY_TOKENS}, the serving cap measured on dev; "
@@ -312,10 +314,17 @@ def main():
     from src.search_service import SearchService
     # the cache only pays off in a process that stays alive to see a repeat, so a one-shot run has none
     cache_size = resolve_cache_size() if (a.interactive and not a.no_query_cache) else 0
+    if a.int8 and not a.allow_lossy_int8:
+        raise SystemExit(
+            "Error: int8 dynamic quantization is disabled due to severe retrieval quality degradation. "
+            "Real CPU test on full 1.7B model (20 APPS queries) showed: fp32 7,994 ms p50; "
+            "int8 5,976 ms but cosine to fp32 0.068, top-10 overlap 0.01, rank-1 changed on 19 of 20 queries (95.0%). "
+            "To force this lossy mode, pass --allow-lossy-int8."
+        )
     svc = SearchService(a.index_dir, device=a.device, mock=a.mock_encoder, threads=a.threads,
                         verify=a.verify_index, cpu_dtype=a.cpu_dtype, int8=a.int8,
                         max_query_tokens=resolve_query_cap(a.max_query_tokens),
-                        query_cache_size=cache_size)
+                        query_cache_size=cache_size, allow_lossy_int8=a.allow_lossy_int8)
     info = svc.describe()
     if info["verify_problems"]:
         print("[cli] WARNING: the index does not match its manifest:", file=sys.stderr)

@@ -113,17 +113,33 @@ def test_int8_is_opt_in(monkeypatch):
         def set_max_seq_length(self, n):
             return n
 
-        def quantize_dynamic_int8(self):
+        def quantize_dynamic_int8(self, allow_lossy_int8=False):
+            if not allow_lossy_int8:
+                raise RuntimeError("int8 dynamic quantisation is rejected on CPU")
             calls["int8"] = True
+            calls["allow_lossy_int8"] = allow_lossy_int8
             return True
 
     import src.runtime_index as ri
     monkeypatch.setattr("src.retrieval.dense_encoder.DenseEncoder", FakeDense)
     ri.PresetQueryEncoder({"model": "m", "revision": "r", "max_seq_length": 8192}, device="cpu")
     assert "int8" not in calls, "int8 must never be applied unless asked for"
+
+    with pytest.raises(RuntimeError, match="int8 dynamic quantisation is rejected on CPU"):
+        ri.PresetQueryEncoder({"model": "m", "revision": "r", "max_seq_length": 8192}, device="cpu",
+                              int8=True)
+
     ri.PresetQueryEncoder({"model": "m", "revision": "r", "max_seq_length": 8192}, device="cpu",
-                          int8=True)
+                          int8=True, allow_lossy_int8=True)
     assert calls.get("int8") is True
+    assert calls.get("allow_lossy_int8") is True
+
+
+def test_dense_encoder_quantize_fails_closed_without_flag():
+    from src.retrieval.dense_encoder import DenseEncoder
+    enc = DenseEncoder.__new__(DenseEncoder)
+    with pytest.raises(RuntimeError, match="int8 dynamic quantisation is rejected on CPU"):
+        enc.quantize_dynamic_int8(allow_lossy_int8=False)
 
 
 def test_bf16_only_reaches_the_encoder_when_asked(monkeypatch):

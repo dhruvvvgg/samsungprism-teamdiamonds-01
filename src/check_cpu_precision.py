@@ -39,12 +39,13 @@ def load_queries(source, n, confirm_test=False, queries_file=None):
     return _load(source, n, confirm_test, queries_file)
 
 
-def run_mode(mode, index_dir, queries, k, threads, mock):
+def run_mode(mode, index_dir, queries, k, threads, mock, allow_lossy_int8=False):
     """Encode every query in `mode` and return (embeddings, top-k doc ids per query, stats)."""
     from src.runtime_index import peak_rss_mb
     from src.search_service import SearchService
     svc = SearchService(index_dir, device="cpu", mock=mock, threads=threads,
-                        cpu_dtype=("bf16" if mode == "bf16" else "fp32"), int8=(mode == "int8"))
+                        cpu_dtype=("bf16" if mode == "bf16" else "fp32"), int8=(mode == "int8"),
+                        allow_lossy_int8=allow_lossy_int8)
     applied = {"cpu_dtype": getattr(svc.encoder, "cpu_dtype", "fp32"),
                "int8_applied": bool(getattr(svc.encoder, "int8", False))}
     if mode == "int8" and not applied["int8_applied"] and not mock:
@@ -101,10 +102,19 @@ def main():
     ap.add_argument("--queries-file", default=None)
     ap.add_argument("--confirm-test", action="store_true")
     ap.add_argument("--mock-encoder", action="store_true", help="CI smoke only; every mode is identical")
+    ap.add_argument("--allow-lossy-int8", action="store_true",
+                    help="explicitly allow evaluating lossy int8 mode despite known severe quality drop")
     ap.add_argument("--out", default=str(ROOT / "results" / "cpu_precision.json"))
     a = ap.parse_args()
     if "fp32" not in a.modes:
         raise SystemExit("fp32 is the reference every other mode is compared against; include it.")
+    if "int8" in a.modes and not a.allow_lossy_int8 and not a.mock_encoder:
+        raise SystemExit(
+            "Error: int8 dynamic quantization is rejected due to severe retrieval quality degradation. "
+            "Real CPU test on full 1.7B model (20 APPS queries) showed: fp32 7,994 ms p50; "
+            "int8 5,976 ms but cosine to fp32 0.068, top-10 overlap 0.01, rank-1 changed on 19 of 20 queries (95.0%). "
+            "To evaluate int8, pass --allow-lossy-int8 explicitly."
+        )
 
     from src.utils_io import write_json_atomic
     queries, label = load_queries(a.queries_source, a.n_queries, a.confirm_test, a.queries_file)
@@ -119,7 +129,8 @@ def main():
     results, ref = [], None
     for mode in a.modes:
         print(f"\n[precision] --- {mode} ---", flush=True)
-        embs, tops, stats = run_mode(mode, a.index_dir, queries, a.top_k, a.threads, a.mock_encoder)
+        embs, tops, stats = run_mode(mode, a.index_dir, queries, a.top_k, a.threads, a.mock_encoder,
+                                     allow_lossy_int8=a.allow_lossy_int8)
         if mode == "fp32":
             ref = (embs, tops)
             stats.update({"cosine_to_fp32_mean": 1.0, f"top{a.top_k}_overlap_mean": 1.0,
@@ -141,6 +152,9 @@ def main():
               f"{r['rank1_changed']:>6} ({r.get('rank1_changed_pct', 0.0):.1f}%)")
     print("\n  Read the overlap column, not the cosine one: a vector can sit at 0.999 cosine and still")
     print("  reorder results, because ranking depends on the gaps between neighbouring documents.")
+    print("\n  VERDICT: int8 is REJECTED. Real CPU test on full 1.7B model (20 APPS queries) showed: "
+          "fp32 7,994 ms p50; int8 5,976 ms but cosine to fp32 0.068, top-10 overlap 0.01, "
+          "rank-1 changed on 19 of 20 queries (95.0%). int8 fails retrieval fidelity requirements.")
     write_json_atomic(a.out, {"index_dir": str(a.index_dir), "n_queries": len(queries),
                               "queries_source": label, "top_k": a.top_k,
                               "mock_encoder": bool(a.mock_encoder), "modes": results,
