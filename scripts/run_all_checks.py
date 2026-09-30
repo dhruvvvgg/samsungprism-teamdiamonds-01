@@ -5,8 +5,7 @@ Written for ONE fresh Kaggle notebook (GPU T4, internet on, no input datasets): 
 needs and reads nothing that was prepared earlier.
 
     python scripts/run_all_checks.py --tier 2 --resume --max-hours 9          # tiers 1 + 2
-    python scripts/run_all_checks.py --only A,F,B,E --tier 3 --continue-f     # optional experiments
-    python scripts/run_all_checks.py --only C --push-results                  # collect (+ push text results)
+    python scripts/run_all_checks.py --only C                                 # collect release files
     python scripts/run_all_checks.py --diagnose                               # tail of every phase log
     python scripts/run_all_checks.py --tier 2 --dry-run                       # the plan, nothing run
 
@@ -14,8 +13,7 @@ Phases
   Tier 1  P0 environment | P1 official 1.7B run + verification | P2 lite index + hash checks
           P3 failure analysis + metrics report | P4 CPU precision and latency
   Tier 2  P5 API smoke test over HTTP | P6 real history (click), delta vectors, rename tracking, agent
-  Tier 3  A gated rerank | F description fusion | B fine-tune (paired eval) | E category tiebreaker
-  Final   C collect release files (+ optional push of small text results)
+  Final   C collect release files
 
 Resilience
   * results/run_state.json records each finished phase; with --resume a finished phase is skipped.
@@ -57,7 +55,6 @@ LOCK = ROOT / "outputs" / "dev" / "OFFICIAL_RUN_DONE.json"
 OFFICIAL_CONFIG = "configs/official_f2llm17b_noreranker.json"
 TARGET_NDCG, TARGET_MRR, TOLERANCE = 0.9376, 0.9238, 0.002
 PY = sys.executable
-PROTECTED_BRANCHES = ("main", "master", "develop")
 
 
 # --------------------------------------------------------------------------------------------------
@@ -338,7 +335,7 @@ def p0_env(ctx):
     ctx.key("packages: " + ", ".join(f"{k} {v}" for k, v in packages.items() if v))
     ctx.key(f"git: {branch} @ {sha[:12]}")
     if gpu is None or "available True" not in torch_probe.out:
-        ctx.fail("no usable CUDA GPU: P1, P2, P6 and the tier-3 experiments need one "
+        ctx.fail("no usable CUDA GPU: P1, P2, P6 need one "
                  "(Settings -> Accelerator -> GPU T4, then restart)")
     if (si.get("ram_total_gb") or 99) < 20:
         ctx.note("under 20 GB RAM: the full-index CPU checks (P4, P5) may run out of memory")
@@ -989,99 +986,6 @@ def p6_history(ctx):
         ctx.keys_from(grep_lines(b1.out, [r"P1 |saved|speedup|reuse"], 3))
 
 
-# --- tier 3 -----------------------------------------------------------------------------------------
-
-def install_experiments(ctx):
-    r = ctx.sh([PY, "-m", "pip", "install", "-q", "-r", "requirements-experiments.txt"],
-               "pip install requirements-experiments.txt", timeout_min=15)
-    if r.rc != 0:
-        ctx.fail("could not install requirements-experiments.txt")
-        return False
-    return True
-
-
-@phase("A", "Experiment A: confidence-gated reranking", 3, 130)
-def pa_gated(ctx):
-    r = ctx.sh([PY, "src/eval/dev_gated_rerank.py", "--preset", "f2llm-v2-1.7b", "--device", "cuda"],
-               "gated rerank sweep", timeout_min=120)
-    if r.rc != 0:
-        ctx.fail(f"dev_gated_rerank.py exited {r.rc}")
-    ctx.keys_from(extract_block(r.out, r"CONFIDENCE-GATED RERANKING", r"written to", 14))
-    j = read_json(RESULTS / "gated_rerank.json") or {}
-    rows = {row["threshold"]: row for row in j.get("rows", [])}
-    if j and rows:
-        lo, hi = rows.get(min(rows)), rows.get(max(rows))
-        ok = (abs(lo["ndcg@10"] - j["never"]["ndcg@10"]) < 1e-4 and abs(hi["ndcg@10"] - j["always"]["ndcg@10"]) < 1e-4)
-        ctx.key(f"endpoint check: t={min(rows)} == never-rerank and t={max(rows)} == always-rerank: "
-                f"{'OK' if ok else 'MISMATCH (the wiring is wrong; nothing between is trustworthy)'}")
-    best = j.get("best_gate")
-    if best:
-        h = ctx.sh([PY, "src/eval/dev_gated_rerank.py", "--preset", "f2llm-v2-1.7b", "--device", "cuda",
-                    "--use-holdout", "--thresholds", str(best["threshold"]),
-                    "--out", str(RESULTS / "gated_rerank_holdout.json")], "confirm the chosen gate on the holdout",
-                   timeout_min=60)
-        ctx.keys_from(extract_block(h.out, r"CONFIDENCE-GATED RERANKING", r"written to", 14))
-
-
-@phase("F", "Experiment F: code-to-description fusion", 3, 170)
-def pf_descriptions(ctx):
-    if not install_experiments(ctx):
-        return
-    s = ctx.sh([PY, "src/build_descriptions.py", "--device", "cuda", "--limit", "200"],
-               "describe a 200-document sample", timeout_min=25)
-    if s.rc != 0:
-        ctx.fail(f"build_descriptions.py --limit 200 exited {s.rc}")
-    after = s.out.split("[desc] wrote", 1)[-1].splitlines()
-    ctx.key("3 sample descriptions (read them: generic ones mean the full run is not worth the GPU time):")
-    ctx.keys_from([ln.rstrip() for ln in after[1:12] if ln.strip()])
-    if not ctx.args.continue_f:
-        ctx.done = False
-        ctx.key("STOPPED after the 200-document sample. If the descriptions above are specific, re-run with "
-                "--continue-f (cell 3 flag) to describe all 8,765 documents and fuse.")
-        return
-    g = ctx.sh([PY, "src/build_descriptions.py", "--device", "cuda"], "describe the whole corpus", timeout_min=130)
-    if g.rc != 0:
-        ctx.fail(f"build_descriptions.py exited {g.rc} (re-running resumes from the cache)")
-        return
-    d = ctx.sh([PY, "src/eval/dev_descriptions.py", "--preset", "f2llm-v2-1.7b", "--device", "cuda"],
-               "fusion sweep", timeout_min=40)
-    if d.rc != 0:
-        ctx.fail(f"dev_descriptions.py exited {d.rc}")
-    ctx.keys_from(extract_block(d.out, r"CODE \+ DESCRIPTION FUSION", r"written to", 14))
-
-
-@phase("B", "Experiment B: fine-tuned lite model, paired holdout evaluation", 3, 230)
-def pb_finetune(ctx):
-    if not install_experiments(ctx):
-        return
-    ft = [PY, "src/train/finetune_lite.py"]
-    for stage, tmo in (("mine", 30), ("train", 130)):
-        r = ctx.sh([*ft, "--stage", stage, "--device", "cuda"], f"fine-tune: {stage}", timeout_min=tmo)
-        if r.rc != 0:
-            ctx.fail(f"finetune_lite.py --stage {stage} exited {r.rc}"
-                     + (" (timed out; re-run with --resume --rerun B to continue from the checkpoint)"
-                        if r.timed_out else ""))
-            return
-    r1 = ctx.sh([*ft, "--stage", "eval", "--base-only", "--preset", "f2llm-v2-1.7b", "--device", "cuda"],
-                "eval stage: 1.7B per-query ranks", timeout_min=30)
-    if r1.rc != 0:
-        ctx.fail("could not save the 1.7B per-query ranks; the tuned model will only be paired with the base 0.6B")
-    r2 = ctx.sh([*ft, "--stage", "eval", "--device", "cuda"], "eval stage: paired base vs tuned", timeout_min=45)
-    if r2.rc != 0:
-        ctx.fail(f"finetune_lite.py --stage eval exited {r2.rc}")
-    ctx.keys_from(extract_block(r2.out, r"PAIRED HOLDOUT EVALUATION", r"^\s*rule:", 16))
-    ctx.keys_from(grep_lines(r2.out, [r"WARNING: the base 0\.6B"], 1))
-
-
-@phase("E", "Experiment E: category tiebreaker", 3, 40)
-def pe_categories(ctx):
-    r = ctx.sh([PY, "src/eval/dev_categories.py", "--preset", "f2llm-v2-1.7b", "--device", "cuda"],
-               "category tiebreaker sweep", timeout_min=35)
-    if r.rc != 0:
-        ctx.fail(f"dev_categories.py exited {r.rc}")
-    ctx.keys_from(extract_block(r.out, r"CATEGORY TIEBREAKER vs", r"written to", 12))
-
-
 # --- C: collect --------------------------------------------------------------------------------------
 
 RELEASE_CANDIDATES = [
@@ -1104,62 +1008,7 @@ def zip_dir(src, dest, exclude_suffixes=()):
     return dest
 
 
-def small_text_files(max_bytes=2_000_000):
-    """The results that may go into git: small .json/.md/.txt only. Rankings, indexes and zips never do."""
-    out = []
-    for base in (RESULTS, ROOT / "outputs"):
-        if not base.exists():
-            continue
-        for p in sorted(base.rglob("*")):
-            if (p.is_file() and p.suffix in (".json", ".md", ".txt") and p.stat().st_size <= max_bytes
-                    and "rankings" not in p.name and "partial" not in p.name and ".tmp" not in p.name
-                    and "dev" not in p.relative_to(ROOT).parts[:2]):
-                out.append(p)
-    return out
-
-
-def push_results(ctx, target_repo, token):
-    branch = "results/final-run"
-    if branch in PROTECTED_BRANCHES:
-        raise RuntimeError("refusing to push to a protected branch")
-    tmp = Path(os.environ.get("TMPDIR", "/tmp")) / "prism_results_push"
-    shutil.rmtree(tmp, ignore_errors=True)
-    url = f"https://x-access-token:{token}@github.com/{target_repo}.git"
-    ctx.token = token
-    git = ["git", "-c", "user.name=prism-final-run", "-c", "user.email=prism-final-run@users.noreply.github.com"]
-    r = ctx.sh([*git, "clone", "--quiet", "--depth", "50", url, str(tmp)], "git clone (masked token)", timeout_min=5)
-    if r.rc != 0:
-        ctx.fail("git clone failed (check the token and --target-repo)")
-        return
-    remote = ctx.sh([*git, "ls-remote", "--heads", "origin", branch], "check for an existing results branch",
-                    cwd=tmp, timeout_min=2)
-    if branch in remote.out:
-        ctx.sh([*git, "fetch", "--quiet", "origin", branch], "fetch results branch", cwd=tmp, timeout_min=3)
-        ctx.sh([*git, "checkout", "--quiet", "-B", branch, "FETCH_HEAD"], "checkout results branch", cwd=tmp, timeout_min=2)
-    else:
-        ctx.sh([*git, "checkout", "--quiet", "-b", branch], "create results branch", cwd=tmp, timeout_min=2)
-    dest = tmp / "final_run"
-    shutil.rmtree(dest, ignore_errors=True)
-    files = small_text_files()
-    for p in files:
-        target = dest / p.relative_to(ROOT)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(p, target)
-    ctx.sh([*git, "add", "-A"], "git add", cwd=tmp, timeout_min=2)
-    c = ctx.sh([*git, "commit", "--quiet", "-m", f"Final run results ({time.strftime('%Y-%m-%d %H:%M')}): "
-                f"{len(files)} small text/JSON files"], "git commit", cwd=tmp, timeout_min=2)
-    if c.rc != 0 and "nothing to commit" in c.out:
-        ctx.key("push: nothing new to commit")
-        return
-    p = ctx.sh([*git, "push", "--quiet", "origin", f"HEAD:refs/heads/{branch}"], "git push (masked token)",
-               cwd=tmp, timeout_min=5)
-    if p.rc != 0:
-        ctx.fail("git push failed")
-    else:
-        ctx.key(f"pushed {len(files)} small text/JSON files to {target_repo}@{branch} under final_run/")
-
-
-@phase("C", "Collect release files (+ optional push of small results)", 0, 25)
+@phase("C", "Collect release files", 0, 25)
 def pc_collect(ctx):
     record_cpu_env(ctx)
     ctx.sh([PY, "src/build_metrics_report.py"], "refresh metrics report", cpu=True, timeout_min=5)
@@ -1196,17 +1045,6 @@ def pc_collect(ctx):
     write_json(RELEASE_JSON, listing)
     for item in listing:
         ctx.key(f"{item['path']} | {item['bytes'] / 1e6:.2f} MB | sha256 {item['sha256']}")
-    if ctx.args.push_results:
-        token = os.environ.get(ctx.args.token_env, "")
-        if not token:
-            ctx.fail(f"--push-results needs the token in ${ctx.args.token_env}")
-        else:
-            try:
-                push_results(ctx, ctx.args.target_repo, token)
-            except Exception as exc:  # noqa: BLE001
-                ctx.fail(f"push failed: {type(exc).__name__}: {str(exc).replace(token, '***')[:200]}")
-    else:
-        ctx.key("push: not requested (--push-results); large files stay out of git either way")
 
 
 # --------------------------------------------------------------------------------------------------
@@ -1388,19 +1226,13 @@ def diagnose(tail=60):
 
 def build_parser():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--tier", type=int, choices=[1, 2, 3], default=1, help="run every phase up to this tier")
+    ap.add_argument("--tier", type=int, choices=[1, 2], default=1, help="run every phase up to this tier")
     ap.add_argument("--only", nargs="*", default=[], help="phase ids, e.g. P1 P4 or P1,P4 (overrides --tier)")
     ap.add_argument("--skip", nargs="*", default=[], help="phase ids to leave out")
     ap.add_argument("--resume", action="store_true", help="skip phases already PASS in results/run_state.json")
     ap.add_argument("--fresh", action="store_true", help="forget results/run_state.json before starting")
     ap.add_argument("--rerun", nargs="*", default=[], help="with --resume, phases to run again anyway")
     ap.add_argument("--max-hours", type=float, default=10.0, help="stop starting phases when this is spent")
-    ap.add_argument("--target-repo", default="dhruvvvgg/samsungprism-teamdiamonds-01", help="owner/name for --push-results")
-    ap.add_argument("--token-env", default="GITHUB_TOKEN", help="environment variable holding the token")
-    ap.add_argument("--push-results", action="store_true",
-                    help="phase C: commit only small text/JSON results to branch results/final-run")
-    ap.add_argument("--continue-f", action="store_true",
-                    help="experiment F: after the 200-document sample, describe the full corpus and fuse")
     ap.add_argument("--dry-run", action="store_true", help="print the plan and exit")
     ap.add_argument("--diagnose", action="store_true", help="print the tail of every phase log and exit")
     return ap
@@ -1420,7 +1252,7 @@ def main(argv=None):
             print(f"  {pid:2s} tier {ph.tier}  budget {ph.budget_min:>3} min  {'CPU-only ' if ph.cpu_only else '         '}{ph.title}")
         return 0
     state = load_state(args.fresh)
-    state["args"] = {k: v for k, v in vars(args).items() if k not in ("token_env",)}
+    state["args"] = vars(args)
     deadline = time.time() + args.max_hours * 3600
     say(f"running {chosen} | resume={args.resume} | max {args.max_hours} h | results in {RESULTS}")
     try:
