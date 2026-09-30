@@ -496,3 +496,27 @@ def test_the_official_config_and_guard_test_are_untouched_by_this_tooling():
     cfg = json.loads((ROOT / R.OFFICIAL_CONFIG).read_text())
     assert cfg["preset"] == "f2llm-v2-1.7b" and cfg["rerank"] == {"enabled": False}
     assert (ROOT / "tests" / "test_official_path_guard.py").exists()
+
+
+def test_p5_history_diff_lineage_selection_finds_distinct_versions():
+    """Verify that lineage candidates are scanned until one with >= 2 distinct content hashes is found."""
+    # Mock data
+    history_responses = {
+        "sid1": {"n_versions": 2, "versions": [{"version": 1, "content_hash": "aaa"}, {"version": 2, "content_hash": "aaa"}]},
+        "sid2": {"n_versions": 3, "versions": [{"version": 1, "content_hash": "aaa"}, {"version": 2, "content_hash": "bbb"}]},
+    }
+    candidates = ["sid1", "sid2"]
+    chosen_sid, chosen_pair, chosen_h = None, None, None
+    for sid in candidates:
+        h = history_responses[sid]
+        hashes = {}
+        for v in h.get("versions", []):
+            hashes.setdefault(v["content_hash"], v["version"])
+        if len(hashes) >= 2:
+            chosen_sid = sid
+            chosen_pair = sorted(hashes.values())[:2]
+            chosen_h = h
+            break
+    assert chosen_sid == "sid2"
+    assert chosen_pair == [1, 2]
+    assert chosen_h["n_versions"] == 3

@@ -765,19 +765,45 @@ def p5_api(ctx):
                 _, r = http("POST", base + "/search", {"query": hq, "k": 12, "all_versions": True,
                                                        "index": "history", "explain": True})
                 groups = r.get("groups", [])
-                multi = next((g for g in groups if g["others"]), None)
-                sid = (multi or groups[0])["snippet_id"]
-                st, h = http("GET", base + f"/history/{enc(sid, safe='')}?index=history")
-                hashes = {}
-                for v in h.get("versions", []):
-                    hashes.setdefault(v["content_hash"], v["version"])
-                pair = sorted(hashes.values())[:2]
-                if len(pair) < 2:
-                    return False, f"{sid} has one distinct version in the top results; try another query"
-                st2, d = http("GET", base + f"/diff?snippet_id={enc(sid)}&a={pair[0]}&b={pair[1]}&index=history")
-                return (st == 200 and st2 == 200 and d.get("identical") is False and len(groups) > 0,
-                        f"{len(groups)} lineage groups; history of {sid}: {h.get('n_versions')} versions; diff "
-                        f"v{pair[0]}->v{pair[1]} +{d.get('added_lines')} -{d.get('removed_lines')}")
+
+                # Pick a lineage with at least two distinct versions: check /compare content_changed first,
+                # then search groups.
+                candidates = []
+                st_c, cmp_res = http("GET", base + f"/compare?q={enc(hq)}&a={vs[0]}&b={vs[-1]}&k=12&index=history")
+                if st_c == 200:
+                    for hb in cmp_res.get("b", []):
+                        if hb.get("content_changed") and hb.get("snippet_id"):
+                            candidates.append(hb["snippet_id"])
+
+                for g in sorted(groups, key=lambda x: len(x.get("others", [])), reverse=True):
+                    sid = g.get("snippet_id")
+                    if sid and sid not in candidates:
+                        candidates.append(sid)
+
+                chosen_sid = None
+                chosen_pair = None
+                chosen_h = None
+
+                for sid in candidates:
+                    st, h = http("GET", base + f"/history/{enc(sid, safe='')}?index=history")
+                    if st != 200:
+                        continue
+                    hashes = {}
+                    for v in h.get("versions", []):
+                        hashes.setdefault(v["content_hash"], v["version"])
+                    if len(hashes) >= 2:
+                        chosen_sid = sid
+                        chosen_pair = sorted(hashes.values())[:2]
+                        chosen_h = h
+                        break
+
+                if not chosen_sid or not chosen_pair:
+                    return False, "no lineage with at least two distinct versions could be found in history; try another query"
+
+                st2, d = http("GET", base + f"/diff?snippet_id={enc(chosen_sid)}&a={chosen_pair[0]}&b={chosen_pair[1]}&index=history")
+                return (st2 == 200 and d.get("identical") is False and len(groups) > 0,
+                        f"{len(groups)} lineage groups; history of {chosen_sid}: {chosen_h.get('n_versions')} versions; diff "
+                        f"v{chosen_pair[0]}->v{chosen_pair[1]} +{d.get('added_lines')} -{d.get('removed_lines')}")
             checks.run("groups + GET /history/<id> + GET /diff", diff_and_history)
 
             def history_doc():
