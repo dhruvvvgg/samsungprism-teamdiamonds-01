@@ -42,10 +42,22 @@ Needs Python 3.11+ and a prebuilt index directory (`runtime_index/` — see
 [Building an index](#building-an-index)).
 
 ```bash
-git clone <repo-url>
-cd <repo-dir>
+git clone https://github.com/dhruvvvgg/samsungprism-teamdiamonds-01.git
+cd samsungprism-teamdiamonds-01
 pip install -r requirements-serve.txt --extra-index-url https://download.pytorch.org/whl/cpu
+
+# Download official precomputed release indexes:
+python scripts/fetch_release_assets.py --assets indexes
 ```
+
+**Judge quick start (API & Web UI):**
+
+```bash
+python scripts/serve.py
+# then open http://localhost:8000/
+```
+
+For Google Colab / Kaggle interactive execution (including a 2-minute Judge evaluation workflow and complete T4 GPU reproduction instructions), see [docs/COLAB.md](docs/COLAB.md).
 
 **CLI — one question:**
 
@@ -63,7 +75,7 @@ python src/cli.py --interactive
 > :quit
 ```
 
-**API and web UI:**
+**API and web UI directly with uvicorn:**
 
 ```bash
 uvicorn src.api:app --host 0.0.0.0 --port 8000
