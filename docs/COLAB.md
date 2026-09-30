@@ -76,41 +76,30 @@ curl -s http://localhost:8000/agent \
 
 ## Path 2: Maintainer & Reproduction Path (T4 GPU, ~16 minutes)
 
-To reproduce the official evaluation metrics (NDCG@10 0.9376, MRR@10 0.9238) on a Kaggle or Google Colab T4 GPU notebook, run the sequential runner cells located in `scripts/kaggle_cells/`:
+To reproduce the official evaluation metrics (NDCG@10 0.9376, MRR@10 0.9238) on a Kaggle or Google Colab T4 GPU notebook, run `scripts/run_all_checks.py`:
 
-### Cell 1: Environment Setup & Hardware Health Check
+### Step 1: Environment Setup & Hardware Health Check
 
-```python
-# In notebook cell 1:
-%run scripts/kaggle_cells/cell1_setup.py
+```bash
+python scripts/run_all_checks.py --only P0
 ```
 - Sets up environment and verifies GPU availability, disk space, and Python dependencies.
 - Runs Phase 0 (P0) diagnostics.
 
-### Cell 2: Tier 1 & Tier 2 Evaluation Pipeline
+### Step 2: Tier 1 & Tier 2 Evaluation Pipeline
 
-```python
-# In notebook cell 2:
-%run scripts/kaggle_cells/cell2_tier1_2.py
+```bash
+python scripts/run_all_checks.py --tier 2 --resume --max-hours 9
 ```
 - Executes official MTEB APPS retrieval evaluation (`configs/official_f2llm17b_noreranker.json`) on 3,765 test queries and 8,765 documents.
 - Exports dense `runtime_index/` and lite `runtime_index_lite/`.
 - Executes failure analysis (77 failure query analysis) and CPU precision benchmarks.
 - Runs Tier 2 Click 40-commit real history benchmark.
 
-### Cell 3: Tier 3 Benchmarks (Optional)
+### Step 3: Collect & Package Release Artifacts
 
-```python
-# In notebook cell 3:
-%run scripts/kaggle_cells/cell3_tier3_optional.py
-```
-- Evaluates code evolution benchmark, multi-step code intelligence agent benchmark, and incremental index rebuild benchmarks.
-
-### Cell 4: Collect & Package Release Artifacts
-
-```python
-# In notebook cell 4:
-%run scripts/kaggle_cells/cell4_collect.py
+```bash
+python scripts/run_all_checks.py --only C
 ```
 - Validates output checksums against official baselines.
 - Archives release packages (`runtime_index.zip`, `runtime_index_lite.zip`, `results_final.zip`, etc.).

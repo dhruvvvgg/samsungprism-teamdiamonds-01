@@ -511,13 +511,12 @@ src/retrieval      dense encoder, BM25, RRF + score-average fusion, rerankers, p
 src/indexing       code chunking, structural index + call graph, categories, optimisation notes
 src/versioning     content hashing, version fixture, git-history ingestion, versioned index
 src/agent          provider-agnostic LLM wrapper, the optional re-judge stage, the retrieval agent
-src/eval           dev protocol (dev_*.py), the official run, metrics, data loading
-src/train          optional LoRA fine-tuning of the lite model
+src/eval           dev evaluation library, the official run, metrics, data loading
 src/static         the single-page web UI
 src/cli.py  src/api.py  src/build_index.py  src/search_service.py  src/runtime_index.py
 src/verify_submission.py  src/analyze_failures.py  src/build_metrics_report.py
 configs            version-controlled official run configurations
-results            the P0 write-up, the dev runbook, benchmark outputs
+results            metrics, failure analysis, benchmarks, run state
 tests              mocked unit tests and end-to-end smoke tests
 ```
 
@@ -527,8 +526,6 @@ Dependencies are split so a package nobody uses cannot break an install that doe
 |---|---|
 | `requirements.txt` | evaluation, the dev protocol, the tests, CI |
 | `requirements-serve.txt` | CPU serving and the Docker image — no `mteb`, no `datasets`, no CUDA |
-| `requirements-experiments.txt` | optional: LoRA fine-tuning and local description generation (`peft`, `accelerate`) |
-| `requirements-llm.txt` | optional: provider SDKs for the disabled LLM re-judge stage |
 
 Every import of an optional package is function-local, so the code loads and the whole test suite passes
 without any of them installed.
