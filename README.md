@@ -4,9 +4,101 @@ Samsung PRISM GenAI Hackathon, Theme 01.
 
 A code retrieval system for the MTEB AppsRetrieval task (CoIR-Retrieval/apps): 3,765 test queries against the full 8,765-document corpus. It ships as a working tool, not just an evaluation script: a CPU-only CLI, HTTP API and web UI that serve a prebuilt index, plus code-structure search, a retrieval agent, and incremental re-indexing across a repository's git history.
 
+## Try it now: one-cell judge demo (Google Colab)
+
+The fastest way to use the system without installing anything. Open a new [Google Colab](https://colab.research.google.com/) notebook (a free CPU runtime is enough; no GPU is needed for serving), paste the cell below into one code cell and run it. After about two minutes it prints a public link to the web UI.
+
+```python
+# ============================================================
+# Samsung PRISM GenAI Hackathon - Theme 01 | Judge Demo
+# ============================================================
+import subprocess, time, re
+
+# 1. Clone repo
+subprocess.run("git clone https://github.com/dhruvvvgg/samsungprism-teamdiamonds-01.git", shell=True)
+%cd samsungprism-teamdiamonds-01
+
+# 2. Install serving deps (no CUDA, ~30s)
+subprocess.run("pip install -q -r requirements-serve.txt --extra-index-url https://download.pytorch.org/whl/cpu", shell=True)
+
+# 3. Download prebuilt indexes from GitHub Release (~60s)
+subprocess.run("python scripts/fetch_release_assets.py --assets indexes", shell=True)
+
+# 4. Start the API + Web UI server
+subprocess.Popen(
+    ["python", "scripts/serve.py", "--host", "0.0.0.0", "--port", "8000"],
+    stdout=open("/content/serve.log", "w"), stderr=subprocess.STDOUT
+)
+time.sleep(5)
+
+# 5. Start Cloudflare tunnel
+subprocess.run("wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /content/cloudflared && chmod +x /content/cloudflared", shell=True)
+subprocess.Popen("nohup /content/cloudflared tunnel --url http://localhost:8000 > /content/cf.log 2>&1 &", shell=True)
+
+# 6. Wait for tunnel URL
+for _ in range(30):
+    time.sleep(2)
+    try:
+        m = re.search(r"https://[-a-z0-9]+\.trycloudflare\.com", open("/content/cf.log").read())
+        if m:
+            print(f"\n{'='*60}")
+            print(f"  ✅ Web UI:   {m.group(0)}")
+            print(f"  ✅ API docs: {m.group(0)}/docs")
+            print(f"{'='*60}\n")
+            break
+    except FileNotFoundError:
+        pass
+else:
+    print("❌ Tunnel URL not found. Check /content/cf.log")
+```
+
+Click the `Web UI` link that the cell prints.
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+sequenceDiagram
+    actor J as Judge
+    participant N as Colab cell
+    participant G as GitHub Release
+    participant S as serve.py (API + UI)
+    participant T as cloudflared tunnel
+    participant B as Chrome
+
+    J->>N: paste the cell and run
+    N->>N: clone repo, install serving deps
+    N->>G: fetch_release_assets.py --assets indexes
+    G-->>N: prebuilt index
+    N->>S: start server on port 8000
+    N->>T: start quick tunnel to localhost:8000
+    T-->>N: public trycloudflare.com URL
+    N-->>J: prints Web UI and API docs links
+    J->>B: open link in Chrome (Incognito if an extension interferes)
+    B->>T: search request
+    T->>S: forwarded
+    S-->>B: ranked results and timings
+```
+
+
+**Open the link in Google Chrome.** The page is tested there. Browser extensions (ad and tracker blockers, privacy or anti-tracking add-ons, VPN or proxy extensions, some security suites) can block or rewrite requests to `*.trycloudflare.com`, or block the page's own calls to `/search`. The symptom is a blank page, a spinner that never ends, or "Failed to fetch". If you see that:
+
+1. Open the link in an **Incognito window** (Chrome disables extensions there by default), or
+2. Disable your extensions for the site, or pause them and reload.
+
+**Why a tunnel.** A Colab VM has no public address and cannot expose a port. The cell runs a Cloudflare "quick tunnel" (`cloudflared`), which needs no account and no token, and gives the server running inside the VM a temporary public `https` URL. Nothing is installed on your machine.
+
+**What to expect**
+
+- **Memory.** Free Colab has about 12.7 GB of RAM. The 1.7B model needs ~11 GB RSS on CPU, so on free Colab use the lite index (0.6B, ~4.5 GB). If the runtime restarts or the status line reports `degraded`, the full index did not fit; see `GET /health` (open `<link>/health`).
+- **First search is slower.** The model is fetched from Hugging Face on the first query and then stays warm. Later short queries take about a second on the lite model; full APPS problem statements take a few seconds (see [Resources](#resources)).
+- **The link is temporary.** It changes every time the cell runs and stops working when the Colab runtime stops or the cell is interrupted. Anyone holding the link can reach the demo while it runs, so stop the cell when you are done.
+- **The tunnel needs a few seconds to come up.** If the browser says the address cannot be resolved, wait about 30 seconds and refresh.
+- **Logs.** `/content/serve.log` (server) and `/content/cf.log` (tunnel). The cell prints a pointer to `cf.log` if no URL appears within a minute.
+
+More detail, including a troubleshooting table: `docs/COLAB.md`.
+
 ## Headline result
 
-NDCG@10 0.9376 · MRR@10 0.9238 on the official test split.
+**NDCG@10 0.9376 · MRR@10 0.9238** on the official test split.
 
 | Metric | Value |
 |---|---|
@@ -20,15 +112,57 @@ System: F2LLM-v2-1.7B alone, with no reranker, no fusion and no query cap. The 3
 
 Matching the published reference to within 0.0007 is the harness check. It shows the evaluation path, the prompt and the pooling are right, so differences measured between candidates are real differences between candidates.
 
-A lite variant (F2LLM-v2-0.6B) scores 0.9044 / 0.8840 on the same test split and is ~2.5× faster on CPU. It is offered for interactive use; the submitted result is the 1.7B.
+A lite variant (F2LLM-v2-0.6B) scores 0.9044 / 0.8840 on the same test split and is ~2.5x faster on CPU. It is offered for interactive use; the submitted result is the 1.7B.
 
-## Quick start (CPU)
+## How it works
 
-Needs Python 3.11+ and a prebuilt index directory (`runtime_index/`, see Building an index).
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    C[("CoIR-APPS corpus<br/>8,765 documents")] --> E1["F2LLM-v2-1.7B<br/>document encoder, fp16<br/>built once on a T4"]
+    E1 --> IDX[("runtime_index<br/>8765 x 2048 vectors<br/>ids, texts, manifest")]
+
+    Q(["User query<br/>problem statement, question or code"]) --> R{"Query router<br/>rules first"}
+    R -->|"semantic search"| E2["Same encoder on CPU<br/>query cap 1024 tokens"]
+    E2 --> S["Cosine search<br/>4-6 ms"]
+    IDX --> S
+    S --> T(["Top-k results<br/>similarity score, why this result"])
+    R -->|"structural question"| ST["AST structural index<br/>and call graph"]
+    ST --> T
+    R -.->|"optional, off by default"| LLM["LLM planner<br/>provider-agnostic, mock by default"]
+    A["Retrieval agent<br/>plan, search, read, refine<br/>6-step cap, no LLM needed"] --> R
+    T --> A
+```
+
+The index is built once and mounted read-only. Serving never touches the test split, and nearly all query latency is the encoder, not the search.
+
+## Release assets
+
+The GitHub Release for tag `PRISM_GENAI_HACKATHON_Y2026` (evaluated source commit `70518622e07b`) carries the official result and everything needed to check it:
+
+| Asset | What it is |
+|---|---|
+| `appsretrieval_results.json` | MTEB's result JSON for the official run (screening artefact) |
+| `appsretrieval_rankings.json` | ordered top-100 document ids per test query |
+| `submission_checksums.json` | SHA-256 of the files above and of every index file |
+| `runtime_index.zip` | prebuilt 1.7B index (served by default) |
+| `runtime_index_lite.zip` | prebuilt 0.6B lite index |
+| `history_index.zip` | prebuilt git-history index (pallets/click) |
+| `results_final.zip` | final-run result files and summaries |
+| `run_logs.zip` | execution logs of the final run |
+
+`appsretrieval_results.json` SHA-256: `1d323033cfea7a688cfcaf6e885d2a5703dc9ec7e5457ba53ebbbac04cfb41a7`
+`appsretrieval_rankings.json` SHA-256: `41480c0168d9b018a24d1d308beff33cdf9ae1de053f318260679e43ebd2c9bf`
+
+`python scripts/fetch_release_assets.py --assets indexes` downloads the indexes. See `docs/RELEASE_ASSETS.md` for the full list and verification steps.
+
+## Quick start (CPU, local machine)
+
+Needs Python 3.11+ and a prebuilt index directory (`runtime_index/`). Either download it from the release (`python scripts/fetch_release_assets.py --assets indexes`) or build it (see [Building an index](#building-an-index)).
 
 ```bash
-git clone <repo-url>
-cd <repo-dir>
+git clone https://github.com/dhruvvvgg/samsungprism-teamdiamonds-01.git
+cd samsungprism-teamdiamonds-01
 pip install -r requirements-serve.txt --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
@@ -57,17 +191,19 @@ curl -s localhost:8000/search -H 'Content-Type: application/json' \
      -d '{"query": "binary search over a sorted array", "k": 5}'
 ```
 
+(`python scripts/serve.py --host 0.0.0.0 --port 8000`, used by the Colab cell above, starts the same app.)
+
 The query box is a multiline textarea (newlines are preserved; Ctrl/Cmd+Enter searches) with an example selector holding four APPS-style problem statements and one code-style query. Implemented and unit-tested; not benchmarked.
 
 On a versioned or git-history index, results are grouped by lineage: one entry per function with its best version on top, and the other versions that made the list expandable underneath. Each entry has a View history button that lists every version oldest first with its commit. Grouping is a view over the ranking, not a re-rank. Implemented and unit-tested; not benchmarked.
 
 A compact performance panel under the results shows query-encode, search and total time, device, model, query cap, whether the query was truncated, and the index's document count and size. All figures come from the response; nothing is estimated. Implemented and unit-tested; not benchmarked.
 
-The status line describes the selected index (`GET /health?index=NAME` reports on an index without loading it). Agent mode disables the version and category controls it ignores, and the page has explicit loading, empty, unavailable-index and error states. Scores are labelled similarity score (cosine similarity, useful only for ordering) and are never shown as a percentage or a confidence.
+The status line describes the selected index (`GET /health?index=NAME` reports on an index without loading it). Agent mode disables the version and category controls it ignores, and the page has explicit loading, empty, unavailable-index and error states. Scores are labelled *similarity score* (cosine similarity, useful only for ordering) and are never shown as a percentage or a confidence.
 
-Each result has an expandable Why this result line: the query's route and reason, the similarity gap to the next result, and the matched terms (query words that also appear among the snippet's identifiers, read from its AST; plural and snake/camel-case parts ignored). It costs no model call and is lexical only. It does not explain why the embedding model scored a snippet as it did, and the UI says so. Opt in with `"explain": true` on `POST /search`. Implemented and unit-tested; not benchmarked.
+Each result has an expandable *Why this result* line: the query's route and reason, the similarity gap to the next result, and the matched terms (query words that also appear among the snippet's identifiers, read from its AST; plural and snake/camel-case parts ignored). It costs no model call and is lexical only. It does not explain why the embedding model scored a snippet as it did, and the UI says so. Opt in with `"explain": true` on `POST /search`. Implemented and unit-tested; not benchmarked.
 
-Exact-query embedding cache (serving only). An LRU keyed by (query text, model, revision, query prompt, query token cap, dtype) lets a repeated identical query skip the encoder; timings report `cached: true/false`. It is on in the API/UI and the CLI's `--interactive` mode, and off with `QUERY_CACHE=0` (`QUERY_CACHE_SIZE` sets the size). It is absent by construction from `run_official` and every benchmark: `SearchService` defaults to no cache, and a test fails if any other script opts in. There is no fuzzy matching, and no latency figure is claimed for it. Implemented and unit-tested; not benchmarked.
+**Exact-query embedding cache (serving only).** An LRU keyed by (query text, model, revision, query prompt, query token cap, dtype) lets a repeated identical query skip the encoder; timings report `cached: true/false`. It is on in the API/UI and the CLI's `--interactive` mode, and off with `QUERY_CACHE=0` (`QUERY_CACHE_SIZE` sets the size). It is absent by construction from `run_official` and every benchmark: `SearchService` defaults to no cache, and a test fails if any other script opts in. There is no fuzzy matching. In the final-run API smoke test a cache miss took 510 ms and a hit 0.02 ms on the lite index; the hit path is only for exact repeats.
 
 Clicking a result opens the full snippet (`GET /doc?id=...`) with line numbers, a copy button and expand/collapse for long snippets. APPS documents show their document ID; a `file:start-end` (and real file line numbers) appears only for indexes that carry source-file metadata. Implemented and unit-tested; not benchmarked.
 
@@ -81,7 +217,7 @@ docker run --rm -p 8000:8000 -v "$PWD/runtime_index:/app/runtime_index:ro" apps-
 # open http://localhost:8000/
 ```
 
-### One command: docker compose up
+One command: `docker compose up`
 
 ```bash
 docker compose up --build        # then open http://localhost:8000/
@@ -110,6 +246,23 @@ The index is mounted, not baked in. It is model output and changes independently
 ## Reproducing the official result
 
 Needs a GPU (a T4 is enough) and about 20 minutes.
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    CFG["configs/official_f2llm17b_noreranker.json"] --> RUN["run_official.py<br/>--confirm-test"]
+    RUN --> ENC["One encoding pass<br/>476 s docs + 462 s queries"]
+    ENC --> RES["appsretrieval_results.json<br/>NDCG@10 0.9376, MRR@10 0.9238"]
+    ENC --> RNK["appsretrieval_rankings.json<br/>top-100 per test query"]
+    ENC --> IDX["runtime_index/"]
+    RES --> CHK["submission_checksums.json<br/>SHA-256 of everything"]
+    RNK --> CHK
+    IDX --> CHK
+    RNK --> VER["verify_submission.py<br/>independent metrics, no model"]
+    VER -->|"recomputed scores match"| OK["PASSED"]
+    RUN --> LOCK["test-split lock<br/>written last"]
+```
+
 
 ```bash
 pip install -r requirements.txt
@@ -141,7 +294,7 @@ This reads the corpus through the dev loader (train qrels only), so the test spl
 
 | | Value |
 |---|---|
-| Model | codefuse-ai/F2LLM-v2-1.7B, revision 3766d46e |
+| Model | `codefuse-ai/F2LLM-v2-1.7B`, revision `3766d46e` |
 | Parameters | 1.7 B (~3.4 GB in fp16) |
 | Full test-split run, T4 | 948 s (476 s docs + 462 s queries) |
 | Index build, T4 | 572 s → 35.9 MB (lite: 293 s → 18.0 MB) |
@@ -157,17 +310,32 @@ CPU serving, measured on 2 physical cores, fp32, uncapped:
 | Peak RSS | 11.0 GB | 4.5 GB |
 | Vector search itself | 4–6 ms | 4–6 ms |
 
-Nearly all of the time is query encoding; retrieval is 4–6 ms. APPS queries are whole problem statements and attention cost grows faster than linearly in sequence length, so latency scales with query length, not with corpus size. Two cores against one is roughly 1.8×, so more cores is the one lever with no quality cost. The warm short-query figure is the one that matters for a live demo.
+Nearly all of the time is query encoding; retrieval is 4–6 ms. APPS queries are whole problem statements and attention cost grows faster than linearly in sequence length, so latency scales with query length, not with corpus size. Two cores against one is roughly 1.8x, so more cores is the one lever with no quality cost. The warm short-query figure is the one that matters for a live demo.
 
-Serving query cap: 1024 tokens for the CLI, API and UI. It is the largest cap tested that was not significantly worse on dev (−0.0010 NDCG@10, 2.6% of queries truncated), and it bounds a very long tail. The official run is uncapped, and a test asserts it.
+**Serving query cap: 1024 tokens** for the CLI, API and UI. It is the largest cap tested that was not significantly worse on dev (−0.0010 NDCG@10, 2.6% of queries truncated), and it bounds a very long tail. The official run is uncapped, and a test asserts it.
 
-CPU precision. fp32 is the default. bf16 is kept as a flag but is 4× slower on the tested CPU, which has no native bf16, and the loader warns when that is the case. int8 dynamic quantisation first had a bug: identical output, unchanged speed and +5.4 GB RAM, which is what building a second model while the original keeps encoding looks like. The fix quantises in place, with a census that raises if any `nn.Linear` survived, so a quantisation that does nothing now fails. With the fix, int8 ran about 1.3× faster on the full model (p50 5.8 s against 7.5 s for fp32) but wrecked the embeddings. On 20 queries the cosine similarity to the fp32 embeddings was 0.068 and the top-10 overlap was 0.01, and the top result changed on 19 of 20. int8 is therefore rejected. It fails closed unless an explicit lossy-int8 flag is passed, and it is never recommended.
+**CPU precision.** fp32 is the default. bf16 is kept as a flag but is 4x slower on the tested CPU, which has no native bf16, and the loader warns when that is the case. int8 dynamic quantisation first had a bug: identical output, unchanged speed and +5.4 GB RAM, which is what building a second model while the original keeps encoding looks like. The fix quantises in place, with a census that raises if any `nn.Linear` survived, so a quantisation that does nothing now fails. With the fix, int8 ran about 1.3x faster on the full model (p50 5.8 s against 7.5 s for fp32) but wrecked the embeddings. On 20 queries the cosine similarity to the fp32 embeddings was 0.068 and the top-10 overlap was 0.01, and the top result changed on 19 of 20. **int8 is therefore rejected.** It fails closed unless an explicit lossy-int8 flag is passed, and it is never recommended.
 
 ## P1: retrieval across versions
 
 CoIR-APPS is a flat corpus with no history, so version-aware retrieval is built and tested two ways.
 
 Every version of a snippet is keyed by the SHA-256 of its normalised code (comments, blank lines, trailing whitespace and line endings removed; indentation, identifiers, literals and operators kept). A rebuild re-embeds only the hashes it has not seen. This is exact reuse, not an approximation, since an identical hash means identical normalised text.
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart TD
+    V["New commit or new version of a snippet"] --> N["Normalise code<br/>drop comments, blank lines, trailing whitespace"]
+    N --> H["SHA-256 of normalised text"]
+    H --> Q{"Hash already<br/>in the index?"}
+    Q -->|"yes: identical text"| RE["Reuse stored vector<br/>no encoding"]
+    Q -->|"no: new content"| EN["Encode only this version"]
+    RE --> ROW["Add row to lineage<br/>file::qualname"]
+    EN --> ROW
+```
+
+On the 40-commit click history this reused 95.4% of embeddings.
+
 
 ```bash
 python src/build_version_index.py --device cuda   # synthetic fixture, ~500 snippets x 4 versions
@@ -183,7 +351,9 @@ The real-history path ingests a Python git repository commit by commit. The defa
 
 Version-targeted queries are generated with answers that do not come from the retriever: the text is the function's own docstring, and the discriminating token is an identifier the commit introduced, found by diffing identifier sets.
 
-Status: not yet measured. The synthetic fixture has only been run with the mock hashing encoder (a plumbing check, not a result), and the real-history benchmark has not been run on a GPU.
+**Measured so far (final-run smoke test, real encoder, 40-commit click history):** 8,275 rows over 224 lineages, 379 distinct contents, 95.4% of embeddings reused, built in 74.6 s. A reindex of a small custom folder reused 19 embeddings and recomputed 1 in 0.473 s, with byte-identical vectors for the 19 reused. These are plumbing and reuse measurements, not retrieval-accuracy results.
+
+**Not yet measured:** version-targeted retrieval accuracy (P1 top-1 version accuracy) and Bonus duplicate/lineage recall on a real encoder. No accuracy figure is claimed.
 
 ## Rename and move tracking
 
@@ -195,7 +365,21 @@ Implemented and unit-tested; not benchmarked; off by default and not used by any
 
 ## Incremental update of a served index
 
-Implemented and unit-tested; not benchmarked. A custom-folder or git-history index remembers its source, so it can be brought up to date without a rebuild:
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart LR
+    SRC[("Source folder or repo<br/>path read from the index manifest")] --> SC["Re-scan chunks"]
+    SC --> DF{"Chunk text has<br/>a stored vector?"}
+    DF -->|"yes"| KEEP["Unchanged: keep vector"]
+    DF -->|"no"| ENC["Encode new or modified chunk"]
+    SC --> RM["Removed chunks dropped"]
+    KEEP --> UP["Updated index"]
+    ENC --> UP
+    RM --> UP
+    UP --> NEXT["Next search sees the edit"]
+```
+
+A custom-folder or git-history index remembers its source, so it can be brought up to date without a rebuild:
 
 ```bash
 python src/reindex.py --index my_code_index             # CLI
@@ -203,7 +387,7 @@ python src/reindex.py --index my_code_index --dry-run   # what would change; wri
 curl -s localhost:8000/reindex -H 'Content-Type: application/json' -d '{"index": "my_code_index"}'
 ```
 
-The UI has an Update index button, shown only for indexes that have a source. The operation re-scans the source recorded in the index manifest and reports chunks added, modified, unchanged and removed, embeddings reused against recomputed, and the elapsed time. It encodes only chunks whose text has no stored vector; a test with a spy encoder proves unchanged chunks are never re-encoded. The next search sees the edit. The official APPS indexes are refused, the scan path comes from the manifest and never from a request, and API callers can only name indexes on an allowlist (`ALLOWED_INDEXES`, the named indexes and the server default). No timing is claimed, since it has not been measured with a real encoder.
+The UI has an **Update index** button, shown only for indexes that have a source. The operation re-scans the source recorded in the index manifest and reports chunks added, modified, unchanged and removed, embeddings reused against recomputed, and the elapsed time. It encodes only chunks whose text has no stored vector; a test with a spy encoder proves unchanged chunks are never re-encoded. The next search sees the edit. The official APPS indexes are refused (the final-run smoke test confirmed HTTP 400), the scan path comes from the manifest and never from a request, and API callers can only name indexes on an allowlist (`ALLOWED_INDEXES`, the named indexes and the server default). The one real-encoder measurement is the 19-reused / 1-recomputed, 0.473 s case above; it is a single small example, not a benchmark.
 
 ## Bonus: evolutionary retrieval
 
@@ -217,45 +401,48 @@ python src/cli.py --history "src/click/core.py::Command.invoke" --index history
 python src/bench_evolution.py --device cpu
 ```
 
-Compare two versions. Implemented and unit-tested; not benchmarked. `GET /compare?q=...&a=1&b=3` runs one query against two versions (encoding it once) and marks each result of B as appeared, moved (with the rank change) or same, and each result of A as disappeared or kept. "Appeared" means in B's top-k but not A's, not that it did not exist in A. `GET /diff?snippet_id=...&a=1&b=3` returns the unified diff (difflib) of one lineage between two versions. The UI has a Compare versions panel with side-by-side results and a per-result diff.
+**Compare two versions.** `GET /compare?q=...&a=1&b=3` runs one query against two versions (encoding it once) and marks each result of B as *appeared*, *moved* (with the rank change) or *same*, and each result of A as *disappeared* or *kept*. "Appeared" means in B's top-k but not A's, not that it did not exist in A. `GET /diff?snippet_id=...&a=1&b=3` returns the unified diff (`difflib`) of one lineage between two versions. The UI has a Compare versions panel with side-by-side results and a per-result diff. In the final-run smoke test, comparing v1 against v40 on the click history moved 2 results, kept 6 in the same position, and found 6 whose content changed. The `/history/` and `/diff` endpoints were not exercised end to end on a real index in that run (the test picked a lineage with one distinct version), so treat them as unit-tested only.
 
 By default each lineage collapses to its best-scoring version, so near-identical versions of one snippet stop sharing the top 10 between them and crowding other snippets out.
 
-Status: not yet measured on a real encoder, for the same reason as P1.
+Status: retrieval quality of evolutionary retrieval is not yet measured on a real encoder.
 
 ## Features, and how far each has been taken
 
-"Benchmarked" means measured with a real model against a held-out set. "Implemented and unit-tested" means it works and is covered by tests, but its quality has not been measured at scale.
+"Benchmarked" means measured with a real model against a held-out set. "Smoke-tested" means it ran once end to end with a real encoder and behaved correctly, without a quality measurement. "Implemented and unit-tested" means it works and is covered by tests, but its quality has not been measured at scale.
 
 | Feature | Status |
 |---|---|
-| Dense retrieval on CoIR-APPS (the submitted system) | Benchmarked — official test split, 0.9376 / 0.9238 |
-| Lite 0.6B variant | Benchmarked — official test split, 0.9044 / 0.8840 |
-| CPU serving: CLI, interactive mode, API, web UI | Benchmarked for latency and memory; functionally unit-tested |
+| Dense retrieval on CoIR-APPS (the submitted system) | Benchmarked: official test split, 0.9376 / 0.9238 |
+| Lite 0.6B variant | Benchmarked: official test split, 0.9044 / 0.8840 |
+| CPU serving: CLI, interactive mode, API, web UI | Benchmarked for latency and memory; API endpoints smoke-tested with a real encoder; UI functionally unit-tested |
 | Serving query cap (1024 tokens) | Benchmarked on the dev slice (−0.0010 NDCG@10) |
+| Failure analysis of the official test run | Measured: 77 of 3,765 queries (2.0%) miss the top 10 (56 other, 14 near-duplicate corpus entries, 7 generic wording); 13 fall outside the top 100 |
 | Custom-folder indexing (any Python folder, function/class chunks with file:line) | Implemented and unit-tested; not benchmarked at scale |
 | Query router (problem statement / intent / code / structural) | Implemented and unit-tested; not benchmarked at scale |
-| Structural index, cross-file call graph, usage search | Implemented and unit-tested; not benchmarked at scale |
-| Retrieval agent (plan → search → read → refine, 6-step cap, full trace) | Implemented and unit-tested; not benchmarked at scale |
+| Structural index, cross-file call graph, usage search | Smoke-tested (a `who_calls` query found 7 call sites); not benchmarked at scale |
+| Retrieval agent (plan → search → read → refine, 6-step cap, full trace) | Smoke-tested (1 step, 7 answers); not benchmarked at scale |
 | Snippet categories (AST family + labelled embedding clusters) | Implemented and unit-tested; not benchmarked at scale |
 | Optimisation notes on surfaced code (an extra) | Implemented and unit-tested; not benchmarked at scale |
-| Incremental "Update index" for folder and history indexes (`src/reindex.py`, `POST /reindex`, UI button) | Implemented and unit-tested; not benchmarked |
-| P1 incremental re-indexing (content hash) | Implemented and unit-tested; not yet measured on a real encoder |
+| Incremental "Update index" for folder and history indexes (`src/reindex.py`, `POST /reindex`, UI button) | Smoke-tested (19 reused, 1 recomputed, 0.473 s); not benchmarked |
+| P1 incremental re-indexing (content hash) | Smoke-tested on a 40-commit click history (95.4% reuse, 74.6 s); accuracy not yet measured |
 | Rename / move tracking in the git-history ingester (`--track-renames`, off by default) | Implemented and unit-tested; not benchmarked |
 | Version-delta vectors: base vector per lineage + int8 residual per version (experiment, off by default) | Implemented and unit-tested; not benchmarked |
-| Version comparison and lineage diff (`GET /compare`, `GET /diff`, UI panel) | Implemented and unit-tested; not benchmarked |
-| Bonus evolutionary retrieval (lineage collapsing) | Implemented and unit-tested; not yet measured on a real encoder |
+| Version comparison and lineage diff (`GET /compare`, `GET /diff`, UI panel) | `/compare` smoke-tested; `/diff` unit-tested only |
+| Bonus evolutionary retrieval (lineage collapsing) | Implemented and unit-tested; accuracy not yet measured on a real encoder |
 | int8 CPU quantisation | Measured and rejected: quality collapses (cosine 0.068 to fp32 on 20 queries); fails closed unless an explicit lossy flag is passed |
 
 The agent runs with no LLM at all. The planner is deterministic, and the optional LLM planner goes through one provider-agnostic wrapper whose default is a keyless mock, so a missing API key can't be the reason a demo fails.
 
 ## Limitations
 
-- Latency is dominated by query encoding, not retrieval. On two CPU cores a full APPS problem statement takes ~7.4 s with the 1.7B. A short question with a warm model is ~1.05 s, and the lite model is ~2.5× faster throughout. This comes from running a 1.7B encoder on a CPU.
-- Memory: the 1.7B needs ~11 GB RSS on CPU. A 12 GB machine should serve the lite index instead.
+- **Latency is dominated by query encoding, not retrieval.** On two CPU cores a full APPS problem statement takes ~7.4 s with the 1.7B. A short question with a warm model is ~1.05 s, and the lite model is ~2.5x faster throughout. This comes from running a 1.7B encoder on a CPU.
+- **Memory:** the 1.7B needs ~11 GB RSS on CPU. A 12 GB machine, including free Colab, should serve the lite index instead.
+- **The Colab demo link is temporary** and depends on Cloudflare's free quick-tunnel service and on browser extensions not blocking it (see the demo section).
 - The reranker and dense-dense fusion are implemented and measured but excluded from the submitted path for resource reasons (see the table below).
-- P1, Bonus and the four dev experiments are not yet measured with a real encoder. They are implemented, unit-tested and off by default, and no number from them is claimed anywhere in this README.
+- P1 and Bonus accuracy and the four dev experiments are not yet measured with a real encoder. They are implemented, unit-tested and off by default, and no accuracy number from them is claimed anywhere in this README.
 - F2LLM-v2-4B does not fit a T4 (registry footprint 15.3 GB; out of memory even at batch size 1), so the accuracy available above 1.7B was not reachable on the hardware at hand.
+- F2LLM reports declared training overlap with CoIR data. Dev-versus-test gaps (0.6B +0.0035, 1.7B −0.0034 against the published figures) show no sign of APPS-specific memorisation, but this cannot be ruled out from outside.
 - A function that moves between files starts a new lineage in the version index by default. `--track-renames` joins renamed files and renamed or moved functions (implemented and unit-tested; not benchmarked; see above).
 - Call-order queries ("which files call X before Y") are lexical, not an execution trace. Anything stronger would need control-flow analysis.
 
@@ -266,20 +453,32 @@ Every candidate was judged on a dev protocol built on the train split: a 4,000-q
 | Direction | Dev-slice NDCG@10 | Outcome |
 |---|---|---|
 | F2LLM-v2-0.6B alone | 0.8959 | baseline |
-| F2LLM-v2-1.7B alone | 0.9299 | submitted |
-| 1.7B + 0.6B dense fusion | 0.9353 | passed adoption; excluded — doubles per-query encoding cost |
-| 1.7B + Qwen3-Reranker-0.6B | 0.9371 | passed adoption; excluded — hours of GPU per run, plus per-query cross-encoder latency |
-| Fusion + reranker stacked | 0.9404 | rejected — the 95% CI includes zero |
-| BM25 hybrid | −0.004 to −0.21 | rejected — hurt at every setting |
-| Query rewrites / instruction variants | below baseline | rejected — worst was −0.127 |
-| BGE-reranker-v2-m3 | below baseline | rejected — hurt at every setting |
-| Ettin rerankers (68M, 150M) | +0.0011 | rejected — not significant |
-| LLM re-judge stage | — | rejected — recall@100 is 0.991, so the trigger almost never fires |
-| F2LLM-v2-4B | — | rejected — out of memory on a T4 |
+| F2LLM-v2-1.7B alone | 0.9299 | **submitted** |
+| 1.7B + 0.6B dense fusion | 0.9353 | passed adoption; excluded: doubles per-query encoding cost |
+| 1.7B + Qwen3-Reranker-0.6B | 0.9371 | passed adoption; excluded: hours of GPU per run, plus per-query cross-encoder latency |
+| Fusion + reranker stacked | 0.9404 | rejected: the 95% CI includes zero |
+| BM25 hybrid | −0.004 to −0.21 | rejected: hurt at every setting |
+| Query rewrites / instruction variants | below baseline | rejected: worst was −0.127 |
+| BGE-reranker-v2-m3 | below baseline | rejected: hurt at every setting |
+| Ettin rerankers (68M, 150M) | +0.0011 | rejected: not significant |
+| LLM re-judge stage | n/a | rejected: recall@100 is 0.991, so the trigger almost never fires |
+| F2LLM-v2-4B | n/a | rejected: out of memory on a T4 |
+| int8 CPU quantisation (speed/quality, separate from the table above) | n/a | rejected: cosine 0.068 to fp32 |
+
+```mermaid
+%%{init: {'theme': 'neutral'}}%%
+flowchart TD
+    CAND["Candidate method<br/>tuned on 4,000 dev queries"] --> GATE{"Adoption rule on 1,000 holdout<br/>gain >= 0.005<br/>95% CI excludes zero<br/>worse <= half of better"}
+    GATE -->|"fails"| REJ["Rejected<br/>BM25, query rewrites, BGE reranker,<br/>Ettin, LLM re-judge, stacked fusion + reranker"]
+    GATE -->|"passes"| COST{"Affordable at<br/>serving time?"}
+    COST -->|"no"| EXC["Adopted on dev, excluded<br/>0.6B fusion: 2x encoding cost<br/>Qwen3 reranker: hours of GPU"]
+    COST -->|"yes"| SUB["Submitted"]
+    BASE["F2LLM-v2-1.7B alone<br/>no second stage"] --> SUB
+```
 
 The submitted system is a single model with no second stage. Fusion and reranking each passed adoption on dev but cost too much to run, and stacking them gave no significant gain.
 
-Four further experiments are implemented, off by default and not yet evaluated: confidence-gated reranking (A), code-to-description fusion (F), LoRA fine-tuning of the lite model (B) and a category tiebreaker (E). Each has a dev script and would go through the same adoption rule. No result is claimed for any of them.
+Four further experiments are implemented, off by default and not evaluated: confidence-gated reranking (A), code-to-description fusion (F), LoRA fine-tuning of the lite model (B) and a category tiebreaker (E). Each has a dev script and would go through the same adoption rule. No result is claimed for any of them.
 
 Experiment B's evaluation stage is paired. The base 0.6B and the tuned model are scored on the same 1,000 holdout queries in one run, per-query NDCG@10 / MRR@10 are saved, and the verdict comes from a paired bootstrap under the adoption rule above (optionally also against the 1.7B, whose per-query ranks come from `--stage eval --base-only`). Implemented and unit-tested with fake encoders; not run. The holdout is read only by the eval stage.
 
@@ -303,7 +502,7 @@ flake8 src tests --max-line-length=110 \
     --extend-ignore=E501,W503,E226,E741,E402,E305,E306,E127,E128
 ```
 
-`verify_submission.py` recomputes NDCG@10 and MRR@10 from the exported rankings with its own metric implementation and its own read of the qrels, then re-hashes every artefact against the recorded SHA-256. It loads no model. A disagreement points at exactly one of three things: a wrong ranking export, a metric misunderstanding, or a file that changed after the run.
+`verify_submission.py` recomputes NDCG@10 and MRR@10 from the exported rankings with its own metric implementation and its own read of the qrels, then re-hashes every artefact against the recorded SHA-256. It loads no model. A disagreement points at exactly one of three things: a wrong ranking export, a metric misunderstanding, or a file that changed after the run. It passed on the final run.
 
 `build_metrics_report.py` tolerates missing inputs. Each one becomes a "not yet measured" row naming the command that would fill it.
 
@@ -321,7 +520,9 @@ src/train          optional LoRA fine-tuning of the lite model
 src/static         the single-page web UI
 src/cli.py  src/api.py  src/build_index.py  src/search_service.py  src/runtime_index.py
 src/verify_submission.py  src/analyze_failures.py  src/build_metrics_report.py
+scripts            serve.py (API + UI), fetch_release_assets.py (release downloads)
 configs            version-controlled official run configurations
+docs               COLAB.md (judge demo details), RELEASE_ASSETS.md (release contents)
 results            the P0 write-up, the dev runbook, benchmark outputs
 tests              mocked unit tests and end-to-end smoke tests
 ```
