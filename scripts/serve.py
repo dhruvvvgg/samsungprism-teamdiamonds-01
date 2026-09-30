@@ -45,31 +45,31 @@ def check_neural_weights_available(model_id: str) -> bool:
         return False
 
 
-def main():
+def main(argv=None, run_server=True):
     parser = argparse.ArgumentParser(description="Serve the Samsung PRISM Code Intelligence API and Web UI.")
     parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind (default: 8000)")
     parser.add_argument("--index", choices=["full", "lite", "history", "versions"], default=None,
                         help="Default index to serve (default: full or first detected)")
     parser.add_argument("--mock", action="store_true",
-                        help="Force mock hashing encoder (no model weights, CI/smoke test mode)")
-    args = parser.parse_args()
+                        help="Force mock hashing encoder (no model weights; for UI development only)")
+    args = parser.parse_args(argv)
 
     # Detect available indexes
     available = detect_available_indexes(ROOT)
     available_names = [name for name, _ in available]
 
     if not available_names:
-        print("[WARNING] No precomputed indexes found in repository root.")
-        print("          Run: python scripts/fetch_release_assets.py --assets indexes")
-        print("          to download the official submission indexes.\n")
+        sys.stderr.write(
+            "\n[ERROR] No precomputed indexes found in repository root.\n"
+            "        Run: python scripts/fetch_release_assets.py --assets indexes\n"
+            "        to download the official submission indexes before starting the server.\n\n"
+        )
+        sys.exit(1)
 
     # Set ALLOWED_INDEXES
     if not os.environ.get("ALLOWED_INDEXES"):
-        if available_names:
-            os.environ["ALLOWED_INDEXES"] = ",".join(available_names)
-        else:
-            os.environ["ALLOWED_INDEXES"] = "full"
+        os.environ["ALLOWED_INDEXES"] = ",".join(available_names)
 
     # Determine default index
     if args.index:
@@ -90,23 +90,24 @@ def main():
         os.environ["SEARCH_DEVICE"] = "cpu"
 
     # Determine model and encoder mode
-    target_model = "FreedomIntelligence/F2LLM-v2-1.7B" if chosen_index == "full" else "FreedomIntelligence/F2LLM-v2-0.6B"
-    if args.mock or os.environ.get("MOCK_ENCODER") == "1":
+    target_model = (
+        "FreedomIntelligence/F2LLM-v2-1.7B" if chosen_index == "full"
+        else "FreedomIntelligence/F2LLM-v2-0.6B"
+    )
+    if args.mock:
         os.environ["MOCK_ENCODER"] = "1"
-        encoder_status = "Mock Hashing Query Encoder (MOCK_ENCODER=1)"
+        print("=" * 72)
+        print("*** MOCK ENCODER: results are not real ***")
+        print("=" * 72)
+        encoder_status = "Mock Hashing Query Encoder (--mock enabled; UI development only)"
     else:
+        if os.environ.get("MOCK_ENCODER") == "1":
+            os.environ.pop("MOCK_ENCODER", None)
         has_weights = check_neural_weights_available(target_model)
         if has_weights:
             encoder_status = f"Neural Encoder ({target_model} from local HF cache)"
         else:
-            os.environ["MOCK_ENCODER"] = "1"
-            encoder_status = f"Mock Hashing Query Encoder (MOCK_ENCODER=1 - weights for {target_model} not cached)"
-            print("=" * 72)
-            print(f"[INFO] Local cache does not contain weights for '{target_model}'.")
-            print("       Serving with MOCK_ENCODER=1 (no model download, zero network traffic).")
-            print("       Queries will be answered instantly via deterministic hashing.")
-            print("       To serve with real neural weights, run in an environment with GPU/HF cache.")
-            print("=" * 72)
+            encoder_status = f"Neural Encoder ({target_model})"
 
     # Print banner
     print()
@@ -114,8 +115,8 @@ def main():
     print(" Samsung PRISM GenAI Hackathon - Code Intelligence Service")
     print("=" * 72)
     print(f" Web UI URL:        http://{args.host}:{args.port}/")
-    print(f" OpenAPI Docs:      http://{args.host}:{args.port}/docs")
-    print(f" Detected Indexes:  {', '.join(available_names) if available_names else 'None (downloading required)'}")
+    detected_str = ', '.join(available_names) if available_names else 'None (downloading required)'
+    print(f" Detected Indexes:  {detected_str}")
     print(f" Default Index:     {chosen_index}")
     print(f" Allowed Indexes:   {os.environ['ALLOWED_INDEXES']}")
     print(f" Query Encoder:     {encoder_status}")
@@ -124,16 +125,17 @@ def main():
     print()
 
     # Launch uvicorn
-    try:
-        import uvicorn
-        uvicorn.run("src.api:app", host=args.host, port=args.port, reload=False)
-    except ImportError:
-        sys.stderr.write(
-            "[ERROR] uvicorn or fastapi is not installed in the current Python environment.\n"
-            "        Install serving requirements with:\n"
-            "        pip install -r requirements-serve.txt\n"
-        )
-        sys.exit(1)
+    if run_server:
+        try:
+            import uvicorn
+            uvicorn.run("src.api:app", host=args.host, port=args.port, reload=False)
+        except ImportError:
+            sys.stderr.write(
+                "[ERROR] uvicorn or fastapi is not installed in the current Python environment.\n"
+                "        Install serving requirements with:\n"
+                "        pip install -r requirements-serve.txt\n"
+            )
+            sys.exit(1)
 
 
 if __name__ == "__main__":

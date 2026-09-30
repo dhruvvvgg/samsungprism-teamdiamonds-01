@@ -2,14 +2,14 @@
 
 This guide provides two complete workflows for running the Samsung PRISM GenAI Hackathon (Theme 01) submission:
 
-1. **Judge Quick-Start Path (CPU, ~2 minutes)**: Download precomputed release indexes, start the serving API and web UI, and test queries immediately.
+1. **Judge Quick-Start Serving Demo Path (CPU, ~2 minutes)**: Download precomputed release indexes, start the serving API and web UI, and test queries immediately (serves prebuilt indexes without re-running heavy model encoding or evaluation on CPU).
 2. **Maintainer / Full Reproduction Path (T4 GPU, ~16 minutes)**: Re-run the complete evaluation pipeline from scratch on a GPU instance (Cells 1 to 4).
 
 ---
 
-## Path 1: Judge Fast Evaluation (CPU, ~2 minutes)
+## Path 1: Judge Quick-Start Serving Demo (CPU, ~2 minutes)
 
-Judges can evaluate the system on a standard CPU runtime without re-encoding the corpus or downloading gigabytes of model weights.
+Judges can explore and demo the serving system on a standard CPU runtime using precomputed indexes without re-encoding the corpus or downloading gigabytes of model weights.
 
 ### Step 1: Clone Repository & Install Serving Dependencies
 
@@ -33,10 +33,11 @@ python scripts/fetch_release_assets.py --assets indexes
 ### Step 3: Start the Serving Gateway
 
 ```bash
-python scripts/serve.py --host 0.0.0.0 --port 8000
+# Start with --mock for immediate UI testing without downloading neural weights:
+python scripts/serve.py --host 0.0.0.0 --port 8000 --mock
 ```
 
-`serve.py` automatically detects the downloaded indexes (`runtime_index`, `runtime_index_lite`, `history_index`), configures `ALLOWED_INDEXES`, and selects the appropriate query encoder. If neural weights are not cached locally, it safely defaults to `MOCK_ENCODER=1` to allow zero-weight testing of all API and UI flows.
+`serve.py` automatically detects the downloaded indexes (`runtime_index`, `runtime_index_lite`, `history_index`) and configures `ALLOWED_INDEXES`. The `--mock` flag enables the deterministic mock query encoder for UI development and fast inspection. (To serve with neural embeddings, ensure model weights are cached locally or run on a GPU instance).
 
 ### Step 4: Access the Web UI or Query the API
 

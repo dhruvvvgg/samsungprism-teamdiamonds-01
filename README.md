@@ -26,6 +26,7 @@ System: **F2LLM-v2-1.7B alone** — no reranker, no fusion, no query cap.
 - Official configuration: `configs/official_f2llm17b_noreranker.json`
 - 3,765 queries × 8,765 documents on a Kaggle T4 in **996 s** (476 s document encoding + 503 s query encoding)
 - Speed on T4 GPU: warm query p50 **14.3 ms** (dense **13.9 ms**), index load **1.83 s**
+- **Retrieval code integrity**: The only change on the retrieval path since evaluated commit `70518622e07b` is the int8 guard in `src/retrieval/dense_encoder.py` (a CPU-only branch the official run does not use). Tokenization, prompt prefixes, pooling, EOS handling, and scoring remain bit-for-bit identical.
 
 Reproducing the published reference to within 0.0007 is the harness check: it says the evaluation path,
 the prompt and the pooling are right, so the differences measured between candidates are real
@@ -55,9 +56,10 @@ python scripts/fetch_release_assets.py --assets indexes
 ```bash
 python scripts/serve.py
 # then open http://localhost:8000/
+# Use --mock for UI development without loading neural weights
 ```
 
-For Google Colab / Kaggle interactive execution (including a 2-minute Judge evaluation workflow and complete T4 GPU reproduction instructions), see [docs/COLAB.md](docs/COLAB.md).
+For Google Colab / Kaggle interactive execution (including a 2-minute Judge quick-start serving demo workflow and complete T4 GPU reproduction instructions), see [docs/COLAB.md](docs/COLAB.md).
 
 **CLI — one question:**
 
@@ -425,24 +427,13 @@ paired-bootstrap CI excluding zero, and worsened queries ≤ half of improved.
 The negative results carried real weight: they are why the submitted system is a single model with no
 second stage, rather than a stack of components each justified by a point estimate.
 
-Three further experiments are **implemented, off by default and not yet evaluated**: confidence-gated
-reranking (A), code-to-description fusion (F) and LoRA fine-tuning of the lite model (B), plus a category
-tiebreaker (E). Each has a dev script and goes through the same adoption rule. No result is claimed for
-any of them.
-
-Experiment B's evaluation stage is now **paired**: the base 0.6B and the tuned model are scored on the same
-1,000 holdout queries in one run, per-query NDCG@10 / MRR@10 are saved, and the verdict comes from a paired
-bootstrap under the adoption rule above (optionally also against the 1.7B, whose per-query ranks come from
-`--stage eval --base-only`). *Implemented and unit-tested with fake encoders; not run.* The holdout is
-still read only by the eval stage.
-
-The full write-up of the search is in [`results/P0_summary.md`](results/P0_summary.md).
+Experiments run during development (reranker, fusion, BM25, query rewrites and others) are summarized with numbers in docs/EXPERIMENTS.md. Four further experiments (gated reranking, description fusion, 0.6B fine-tune, category tiebreaker) were designed but not run and are future work.
 
 ---
 
 ## Failure analysis
 
-Of the 3,765 official test queries on CoIR-APPS, 3,688 (98.0%) place the relevant document in the top 10. The **77 failures** (2.0%) have been exhaustively classified:
+The failure analysis in [`results/final-run/failure_analysis.json`](results/final-run/failure_analysis.json) covers queries that miss the top 10 (77 of 3,765 test queries, 2.0% failure rate), not all non-rank-1 queries:
 - **74 semantic / docstring gap**: Competitive programming problems (e.g. Codeforces) where the query describes a complex mathematical backstory, recurrence or game, while the solution code is a direct lookup table, input simulation, or precomputed formula with minimal comments or tokens in common.
 - **2 test-fixture gap**: Equivalent near-duplicate solutions in the APPS corpus where another valid solution ranked above the designated gold document.
 - **1 problem-spec ambiguity**: Ultra-short or generic problem descriptions.

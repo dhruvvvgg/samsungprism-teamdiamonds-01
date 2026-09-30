@@ -135,3 +135,51 @@ def test_serve_detect_available_indexes(tmp_path):
     # Weight check returns boolean without crash
     res = check_neural_weights_available("nonexistent/model")
     assert isinstance(res, bool)
+
+
+def test_serve_no_index_exits_with_clear_message(monkeypatch, tmp_path, capsys):
+    import pytest
+    import scripts.serve as serve_module
+
+    monkeypatch.setattr(serve_module, "ROOT", tmp_path)
+    with pytest.raises(SystemExit) as exc_info:
+        serve_module.main([], run_server=False)
+
+    assert exc_info.value.code == 1
+    captured = capsys.readouterr()
+    assert "No precomputed indexes found" in captured.err
+    assert "scripts/fetch_release_assets.py" in captured.err
+
+
+def test_serve_mock_flag_prints_banner(monkeypatch, tmp_path, capsys):
+    import os
+    import scripts.serve as serve_module
+
+    # Create dummy index so it doesn't exit on missing index
+    (tmp_path / "runtime_index").mkdir()
+    (tmp_path / "runtime_index" / "manifest.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(serve_module, "ROOT", tmp_path)
+    serve_module.main(["--mock"], run_server=False)
+
+    captured = capsys.readouterr()
+    assert "MOCK ENCODER: results are not real" in captured.out
+    assert os.environ.get("MOCK_ENCODER") == "1"
+
+
+def test_serve_without_mock_does_not_set_mock_encoder(monkeypatch, tmp_path, capsys):
+    import os
+    import scripts.serve as serve_module
+
+    (tmp_path / "runtime_index").mkdir()
+    (tmp_path / "runtime_index" / "manifest.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(serve_module, "ROOT", tmp_path)
+    # Ensure MOCK_ENCODER is clean
+    os.environ.pop("MOCK_ENCODER", None)
+
+    serve_module.main([], run_server=False)
+
+    captured = capsys.readouterr()
+    assert "MOCK ENCODER: results are not real" not in captured.out
+    assert os.environ.get("MOCK_ENCODER") != "1"
