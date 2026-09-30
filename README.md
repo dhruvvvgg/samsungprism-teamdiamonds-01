@@ -539,3 +539,6 @@ Dependencies are split so a package nobody uses cannot break an install that doe
 | `requirements-llm.txt` | optional: provider SDKs for the disabled LLM re-judge stage |
 
 Every import of an optional package is function-local, so the code loads and the whole test suite passes without any of them installed.
+
+
+Under Apache-2.0 License
