@@ -17,7 +17,7 @@ class SearchService:
 
     def __init__(self, index_dir="full", device="cpu", mock=False, threads=None,
                  verify=False, cpu_dtype="fp32", int8=False, max_query_tokens=SERVING_DEFAULT,
-                 query_cache_size=0):
+                 query_cache_size=0, allow_lossy_int8=False):
         """device defaults to cpu: this is the serving path, and the whole point of the exported index
         is that answering a query needs no GPU.
 
@@ -47,7 +47,8 @@ class SearchService:
         t0 = time.time()
         self.encoder = load_query_encoder(self.index.manifest, device=device, mock=mock,
                                           cpu_dtype=cpu_dtype, int8=int8,
-                                          max_query_tokens=max_query_tokens)
+                                          max_query_tokens=max_query_tokens,
+                                          allow_lossy_int8=allow_lossy_int8)
         self.model_load_seconds = time.time() - t0
         self.device = device
         from src.query_cache import QueryEmbeddingCache

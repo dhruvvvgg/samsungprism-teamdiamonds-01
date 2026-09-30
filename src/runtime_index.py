@@ -302,7 +302,7 @@ class PresetQueryEncoder:
     """
 
     def __init__(self, manifest, device="cpu", max_seq_length=None, cpu_dtype="fp32", int8=False,
-                 max_query_tokens=None):
+                 max_query_tokens=None, allow_lossy_int8=False):
         import time
 
         from src.retrieval.dense_encoder import DenseEncoder
@@ -322,7 +322,7 @@ class PresetQueryEncoder:
                                   expect_eos=manifest.get("expect_eos", False),
                                   allow_cpu_half=(cpu_dtype == "bf16"))
         if int8:
-            self.dense.quantize_dynamic_int8()
+            self.dense.quantize_dynamic_int8(allow_lossy_int8=allow_lossy_int8)
         self.max_query_tokens = max_query_tokens
         self.doc_max_seq_length = max_seq_length or manifest.get("max_seq_length", 8192)
         if max_query_tokens:
@@ -399,12 +399,13 @@ def make_doc_encoder(preset_name="f2llm-v2-1.7b", device="cuda", mock=False, var
 
 
 def load_query_encoder(manifest, device="cpu", mock=False, cpu_dtype="fp32", int8=False,
-                       max_query_tokens=None):
+                       max_query_tokens=None, allow_lossy_int8=False):
     """Mock encoder if asked (or if the index was built by one), else the manifest's real model."""
     if mock or manifest.get("model") == "mock/hashing-encoder":
         return HashingQueryEncoder(manifest["dim"], max_query_tokens=max_query_tokens)
     return PresetQueryEncoder(manifest, device=device, cpu_dtype=cpu_dtype, int8=int8,
-                              max_query_tokens=max_query_tokens)
+                              max_query_tokens=max_query_tokens,
+                              allow_lossy_int8=allow_lossy_int8)
 
 
 def peak_rss_mb():

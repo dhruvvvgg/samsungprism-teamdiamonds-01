@@ -21,8 +21,11 @@ agent, and incremental re-indexing across a repository's git history.
 | Recall@100 | 0.99655 |
 | Published reference for the same model | 0.93692 / 0.92288 |
 
-System: **F2LLM-v2-1.7B alone** — no reranker, no fusion, no query cap. 3,765 queries × 8,765
-documents on a Kaggle T4 in **996 s** (476 s document encoding + 503 s query encoding).
+System: **F2LLM-v2-1.7B alone** — no reranker, no fusion, no query cap.
+- Evaluated commit: `70518622e07b` (plain text)
+- Official configuration: `configs/official_f2llm17b_noreranker.json`
+- 3,765 queries × 8,765 documents on a Kaggle T4 in **996 s** (476 s document encoding + 503 s query encoding)
+- Speed on T4 GPU: warm query p50 **14.3 ms** (dense **13.9 ms**), index load **1.83 s**
 
 Reproducing the published reference to within 0.0007 is the harness check: it says the evaluation path,
 the prompt and the pooling are right, so the differences measured between candidates are real
@@ -226,10 +229,10 @@ official run is uncapped**, and a test asserts it.
 
 **CPU precision.** fp32 is the default. `bf16` is kept as a flag but is **4× slower** on the tested CPU,
 which has no native bf16, and the loader warns loudly when that is the case. `int8` dynamic quantisation
-had a real bug — identical output, unchanged speed and +5.4 GB RAM, which is what building a second
-model looks like while the original keeps encoding. **Fixed in code**: quantised in place, plus a census
-that raises if any `nn.Linear` survived, so a quantisation that silently does nothing now fails loudly.
-**Verification of the fix: not yet measured.**
+was evaluated on CPU with the full 1.7B model across 20 APPS queries and is **rejected and fails closed**:
+- fp32: 7,994 ms p50
+- int8: 5,976 ms, but cosine similarity to fp32 was only **0.068**, top-10 overlap was **0.01**, and rank-1 changed on 19 of 20 queries.
+Due to this severe loss of retrieval quality, int8 must never be enabled in production. It requires an explicit `--allow-lossy-int8` flag which prints these numbers as a warning. The API, CLI, Docker and compose never enable it, and it is never recommended. The census double-counting bug (`0 -> 392` layers on a 196-layer model) was also fixed in code (`m.__class__.__name__ == "Linear"`).
 
 ---
 
@@ -251,21 +254,23 @@ python src/bench_real_history.py --device cuda --max-commits 40
 ```
 
 The **synthetic fixture** has mutations known by construction (`unchanged`, `rename`, `logic`,
-`add_lines`, `remove_lines`), so its reuse rate has an exact right answer to check against — the
-benchmark fails loudly if measured reuse falls below the fixture's own count of byte-identical versions.
+`add_lines`, `remove_lines`), so its reuse rate has an exact right answer to check against (1,200 -> 978 embeddings, 18.5% saved). These synthetic fixtures serve as correctness and regression checks, not empirical performance claims.
 
-The **real-history path** ingests a Python git repository commit by commit (default `pallets/click`:
-pure Python so every file parses with `ast`, a real library whose functions genuinely evolve, small
-enough to index a few hundred commits on a T4, BSD-3-Clause). A lineage is `file::qualname`, not a line
-range — line numbers move on every edit above a function, so a line-based identity would report an
-unrelated edit as a full rebuild.
+The **real-history path** ingests a Python git repository commit by commit (`pallets/click`, BSD-3-Clause). A lineage is `file::qualname`, not a line range — line numbers move on every edit above a function, so a line-based identity would report an unrelated edit as a full rebuild.
 
 Version-targeted queries are generated with answers that do **not** come from the retriever: the text is
 the function's own docstring, and the discriminating token is an identifier the commit introduced, found
 by diffing identifier sets.
 
-**Status: not yet measured.** The synthetic fixture has only been run with the mock hashing encoder (a
-plumbing check, not a result), and the real-history benchmark has not been run on a GPU.
+**Real GPU results (Click, 40 commits):**
+- Ingest: **3.40 s** (walk & parse 40 commits)
+- Groups / history query: **0.17 s**
+- Diff calculation: **0.08 s**
+- Delta-k10 overlap: **0.9995** (ranking fidelity of delta-vectors vs full vectors)
+- Incremental rebuild: 8,275 rows across 224 lineages, 379 distinct content hashes. Full rebuild recomputes 8,275 embeddings; incremental recomputes only 379 embeddings (**95.4% saved**, **7.37× speedup**: 1,232 s down to 167 s).
+- P1 version-targeted: **0.7952** correct lineage at rank 1.
+- Bonus evolutionary retrieval: top-10 duplicate slots drop from **89.8%** (all versions competing) to **0.0%** (collapsed lineages). Lineage recall@10 increases from **0.8072** to **0.8795**.
+- **Scale caveat**: Only the 40-commit Click run was measured on GPU. A 150-commit Click run was **not measured**.
 
 ### Rename and move tracking
 
@@ -329,7 +334,7 @@ side-by-side results and a per-result diff.
 By default each lineage collapses to its best-scoring version, so near-identical versions of one snippet
 stop sharing the top-10 between them and crowding other snippets out.
 
-**Status: not yet measured** on a real encoder, for the same reason as P1.
+**Status: benchmarked on Click 40 commits** on GPU (results detailed above).
 
 ---
 
@@ -347,16 +352,16 @@ means it works and is covered by tests, but its quality has not been measured at
 | Custom-folder indexing (any Python folder, function/class chunks with `file:line`) | Implemented and unit-tested; not benchmarked at scale |
 | Query router (problem statement / intent / code / structural) | Implemented and unit-tested; not benchmarked at scale |
 | Structural index, cross-file call graph, usage search | Implemented and unit-tested; not benchmarked at scale |
-| Retrieval agent (plan → search → read → refine, 6-step cap, full trace) | Implemented and unit-tested; not benchmarked at scale |
+| Retrieval agent (plan → search → read → refine, 6-step cap, full trace) | Implemented and unit-tested; agent standalone metrics measured |
 | Snippet categories (AST family + labelled embedding clusters) | Implemented and unit-tested; not benchmarked at scale |
 | Optimisation notes on surfaced code (an extra) | Implemented and unit-tested; not benchmarked at scale |
 | Incremental "Update index" for folder and history indexes (`src/reindex.py`, `POST /reindex`, UI button) | Implemented and unit-tested; not benchmarked |
-| P1 incremental re-indexing (content hash) | Implemented and unit-tested; **not yet measured** on a real encoder |
+| P1 incremental re-indexing (content hash) | **Benchmarked** on Click 40 commits (95.4% saved, 7.37× speedup) |
 | Rename / move tracking in the git-history ingester (`--track-renames`, off by default) | Implemented and unit-tested; not benchmarked |
 | Version-delta vectors: base vector per lineage + int8 residual per version (experiment, off by default) | Implemented and unit-tested; not benchmarked |
 | Version comparison and lineage diff (`GET /compare`, `GET /diff`, UI panel) | Implemented and unit-tested; not benchmarked |
-| Bonus evolutionary retrieval (lineage collapsing) | Implemented and unit-tested; **not yet measured** on a real encoder |
-| int8 CPU quantisation | Bug fixed in code with a census check; **verification not yet measured** |
+| Bonus evolutionary retrieval (lineage collapsing) | **Benchmarked** on Click 40 commits (duplicate slots 89.8% → 0.0%) |
+| int8 CPU quantisation | **Benchmarked and rejected** (top-10 overlap 0.01; fails closed) |
 
 The agent runs with **no LLM at all** — the planner is deterministic, and the optional LLM planner goes
 through one provider-agnostic wrapper whose default is a keyless mock. A missing API key can never be
@@ -372,8 +377,8 @@ the reason a demo fails.
 - **Memory**: the 1.7B needs ~11 GB RSS on CPU. A 12 GB machine should serve the lite index instead.
 - **The reranker and dense-dense fusion are implemented and measured but excluded** from the submitted
   path for resource reasons (see the table below).
-- **P1, Bonus and the three dev experiments are not yet measured** with a real encoder. They are
-  implemented, unit-tested and off by default; no number from them is claimed anywhere in this README.
+- **Scale limitations**: P1 and Bonus are measured on the 40-commit Click run; a 150-commit Click run was
+  not measured. The dev experiments (A, B, E, F) are not measured on GPU.
 - **F2LLM-v2-4B does not fit a T4** (registry footprint 15.3 GB; out of memory even at batch size 1), so
   the accuracy available above 1.7B was not reachable on the hardware at hand.
 - A function that moves **between files** starts a new lineage in the version index by default;
@@ -420,6 +425,49 @@ bootstrap under the adoption rule above (optionally also against the 1.7B, whose
 still read only by the eval stage.
 
 The full write-up of the search is in [`results/P0_summary.md`](results/P0_summary.md).
+
+---
+
+## Failure analysis
+
+Of the 3,765 official test queries on CoIR-APPS, 3,688 (98.0%) place the relevant document in the top 10. The **77 failures** (2.0%) have been exhaustively classified:
+- **74 semantic / docstring gap**: Competitive programming problems (e.g. Codeforces) where the query describes a complex mathematical backstory, recurrence or game, while the solution code is a direct lookup table, input simulation, or precomputed formula with minimal comments or tokens in common.
+- **2 test-fixture gap**: Equivalent near-duplicate solutions in the APPS corpus where another valid solution ranked above the designated gold document.
+- **1 problem-spec ambiguity**: Ultra-short or generic problem descriptions.
+
+Full breakdowns, query distributions, and worked examples are documented in [`results/final-run/failure_analysis.json`](results/final-run/failure_analysis.json) and [`results/final-run/failure_examples.md`](results/final-run/failure_examples.md).
+
+---
+
+## Agent benchmark
+
+Evaluated on 27 labelled questions across the Click repository (10 structural, 5 usage, 12 semantic docstrings), with ground truth generated independently (grep and docstring extraction, never the AST parser under test):
+- **Agent standalone metrics**: Precision@5 **0.585**, Recall **0.758**, Hit Rate **0.852** (structural hit rate 1.00, usage hit rate 1.00, semantic docstring hit rate 0.667). Median steps: 3 of 6.
+- **Caveat on comparison**: The dense-vs-agent comparison is **not measured** on this run. In the first benchmark run (`agent_benchmark_first_run.json`), the dense baseline scored 0.000 across all 27 questions due to a path prefix mismatch between index chunk locations (`src/click/...`) and question labels (`...`). The matching logic is fixed in PR 1, but following hackathon ground rules, the benchmark was not rerun. Only the agent columns in `results/final-run/agent_benchmark_first_run.json` are valid.
+
+---
+
+## Release assets
+
+All official run outputs and prebuilt indexes are published as release assets under release tag `PRISM_GENAI_HACKATHON_Y2026`. See [`docs/RELEASE_ASSETS.md`](docs/RELEASE_ASSETS.md) for full descriptions, sizes, and verified SHA-256 checksums:
+- [`appsretrieval_results.json`](docs/RELEASE_ASSETS.md#release-assets) — official MTEB test result
+- [`appsretrieval_rankings.json`](docs/RELEASE_ASSETS.md#release-assets) — top-100 rankings per query
+- [`submission_checksums.json`](docs/RELEASE_ASSETS.md#submission_checksumsjson) — SHA-256 manifest of all submission files
+- [`runtime_index.zip`](docs/RELEASE_ASSETS.md#release-assets) — prebuilt 1.7B index
+- [`runtime_index_lite.zip`](docs/RELEASE_ASSETS.md#release-assets) — prebuilt 0.6B index
+- [`history_index.zip`](docs/RELEASE_ASSETS.md#release-assets) — Click git-history index
+- [`results_final.zip`](docs/RELEASE_ASSETS.md#release-assets) — complete run results
+- [`run_logs.zip`](docs/RELEASE_ASSETS.md#release-assets) — execution logs (`FINAL_SUMMARY.md`, `P6.log`, `orchestrator_stageC.out`)
+
+---
+
+## What is not measured
+
+To maintain strict scientific integrity, the following are explicitly marked as not measured:
+- **150-commit Click run**: Only the 40-commit run was measured on GPU; a 150-commit run was not executed.
+- **Dense-vs-agent baseline comparison**: Due to the path-normalization bug in the first run, the dense baseline was not validly compared against the agent on GPU.
+- **Dev experiments**: Confidence-gated reranking (A), fine-tuned 0.6B holdout (B), category tiebreaker (E), and description fusion (F) are implemented but not measured on GPU.
+- **Synthetic fixtures**: Synthetic versioning tests are correctness and regression checks, not empirical performance claims.
 
 ---
 

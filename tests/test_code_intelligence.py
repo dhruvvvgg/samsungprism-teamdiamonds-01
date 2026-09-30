@@ -547,13 +547,35 @@ def test_very_short_docstrings_are_filtered_out(tree):
 
 
 def test_scoring_helpers():
-    from src.bench_agent import locations_of, score
+    from src.bench_agent import locations_of, score, loc_matches
     preds = locations_of([{"location": "a.py:10"}, {"location": "b.py:2"}], exact_lines=False)
     assert preds == {"a.py", "b.py"}
     got = score(["a.py", "z.py"], ["a.py:10"], k=2, exact_lines=False)
     assert got["precision_at_k"] == 0.5 and got["recall"] == 1.0 and got["hit"] is True
     miss = score(["z.py"], ["a.py:10"], k=2, exact_lines=False)
     assert miss["hit"] is False and miss["recall"] == 0.0
+
+    # Path prefix handling (e.g. index has repo-relative paths, questions have package-relative paths)
+    assert loc_matches("src/click/_compat.py:40-65", "_compat.py:42", exact_lines=False)
+    assert loc_matches("src/click/_compat.py:40-65", "_compat.py:42", exact_lines=True)
+    assert not loc_matches("src/click/_compat.py:40-65", "_compat.py:100", exact_lines=True)
+    assert loc_matches("_compat.py", "src/click/_compat.py", exact_lines=False)
+
+
+def test_dense_baseline_scores_above_zero_when_expected_is_rank1(demo_index):
+    from src.search_service import SearchService
+    from src.bench_agent import locations_of, score
+    svc = SearchService(str(demo_index), mock=True)
+    # The docstring for 'tokenize' in examples/textkit/tokenizing.py:
+    query = "Split text into word tokens, dropping punctuation."
+    hits = svc.search(query, k=5)["hits"]
+    assert len(hits) > 0
+    expected = ["tokenizing.py:9"]
+    dense_pred = locations_of([{"location": h.get("location", h["doc_id"])} for h in hits], exact_lines=False)
+    res = score(dense_pred, expected, k=5, exact_lines=False)
+    assert res["hit"] is True
+    assert res["precision_at_k"] > 0.0
+    assert res["recall"] > 0.0
 
 
 # --- end to end through the CLI and API ------------------------------------------------------------
@@ -689,3 +711,20 @@ def test_agent_benchmark_runs_and_reports_by_label_method(demo_index, tmp_path):
         assert 0.0 <= data["overall"][side]["precision_at_k"] <= 1.0
         assert 0.0 <= data["overall"][side]["recall"] <= 1.0
     assert data["overall"]["agent"]["median_steps"] <= 6
+
+
+def test_agent_benchmark_runtime_guard_aborts_on_zero_semantic_hits(demo_index, monkeypatch):
+    """If dense search hits 0 semantic questions, bench_agent must abort."""
+    from src.search_service import SearchService
+    import src.bench_agent as ba
+
+    # Force search to return empty hits so dense hits 0
+    monkeypatch.setattr(SearchService, "search", lambda self, q, **kw: {"hits": []})
+
+    with pytest.raises(RuntimeError, match="Dense hit rate is 0.0 across all .* semantic questions"):
+        # Run main logic with sys.argv mocked; max-questions 30 ensures semantic questions are included
+        monkeypatch.setattr("sys.argv", [
+            "bench_agent.py", "--index", str(demo_index), "--source", str(EXAMPLES),
+            "--mock-encoder", "--max-questions", "30"
+        ])
+        ba.main()

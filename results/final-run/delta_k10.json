@@ -1,0 +1,925 @@
+{
+  "repo": "/kaggle/working/prism-test/data/repos/click",
+  "subdir": "src/click",
+  "ingest": {
+    "repo": "/kaggle/working/prism-test/data/repos/click",
+    "subdir": "src/click",
+    "commits": 40,
+    "rows": 8275,
+    "lineages": 224,
+    "distinct_hashes": 379,
+    "walk_seconds": 3.52,
+    "changed_totals": {
+      "added": 224,
+      "modified": 155,
+      "unchanged": 7896,
+      "removed": 14
+    }
+  },
+  "query_stats": {
+    "n": 83,
+    "by_kind": {
+      "version_specific": 58,
+      "lineage_only": 25
+    },
+    "by_label_source": {
+      "qualname": 22,
+      "docstring": 61
+    },
+    "lineages": 83
+  },
+  "mock_encoder": false,
+  "encoder": "codefuse-ai/F2LLM-v2-0.6B",
+  "k": 10,
+  "per_version": [
+    {
+      "version": 1,
+      "commit": "ba745ac640",
+      "subject": "Cleanup documentation for `8.4.0` (#3393)",
+      "lineages": 203,
+      "added": 203,
+      "modified": 0,
+      "unchanged": 0,
+      "full": {
+        "recomputed": 203,
+        "seconds": 27.691
+      },
+      "incremental": {
+        "recomputed": 203,
+        "reused": 0,
+        "reuse_pct": 0.0,
+        "seconds": 28.089
+      },
+      "expected_unchanged": 0,
+      "speedup_x": 0.99
+    },
+    {
+      "version": 2,
+      "commit": "d959898db2",
+      "subject": "Add capture mode to `CliRunner` and revert default `fileno` ",
+      "lineages": 204,
+      "added": 1,
+      "modified": 2,
+      "unchanged": 201,
+      "full": {
+        "recomputed": 204,
+        "seconds": 27.426
+      },
+      "incremental": {
+        "recomputed": 3,
+        "reused": 201,
+        "reuse_pct": 98.5,
+        "seconds": 1.94
+      },
+      "expected_unchanged": 201,
+      "speedup_x": 14.13
+    },
+    {
+      "version": 3,
+      "commit": "7c99ebe23b",
+      "subject": "Make `TextWrapper` ANSI-aware (#3420)",
+      "lineages": 205,
+      "added": 1,
+      "modified": 2,
+      "unchanged": 202,
+      "full": {
+        "recomputed": 205,
+        "seconds": 27.552
+      },
+      "incremental": {
+        "recomputed": 3,
+        "reused": 202,
+        "reuse_pct": 98.5,
+        "seconds": 0.338
+      },
+      "expected_unchanged": 202,
+      "speedup_x": 81.42
+    },
+    {
+      "version": 4,
+      "commit": "63274a79d0",
+      "subject": "`click.get_pager_file`: add tests (#1572 followup) (#3405)",
+      "lineages": 207,
+      "added": 2,
+      "modified": 1,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 207,
+        "seconds": 27.808
+      },
+      "incremental": {
+        "recomputed": 3,
+        "reused": 204,
+        "reuse_pct": 98.6,
+        "seconds": 0.069
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 402.05
+    },
+    {
+      "version": 5,
+      "commit": "3bb230dcd5",
+      "subject": "WIP: Fix `HelpFormatter.write_usage` producing spurious char",
+      "lineages": 207,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 206,
+      "full": {
+        "recomputed": 207,
+        "seconds": 27.653
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 206,
+        "reuse_pct": 99.5,
+        "seconds": 0.399
+      },
+      "expected_unchanged": 206,
+      "speedup_x": 69.27
+    },
+    {
+      "version": 6,
+      "commit": "e3e69e3bf8",
+      "subject": "Add type annotations for instance attributes in `utils` (#34",
+      "lineages": 207,
+      "added": 0,
+      "modified": 3,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 207,
+        "seconds": 27.622
+      },
+      "incremental": {
+        "recomputed": 3,
+        "reused": 204,
+        "reuse_pct": 98.6,
+        "seconds": 0.21
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 131.3
+    },
+    {
+      "version": 7,
+      "commit": "dbf4d14c71",
+      "subject": "Merge stable into main (#3479)",
+      "lineages": 207,
+      "added": 0,
+      "modified": 3,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 207,
+        "seconds": 27.651
+      },
+      "incremental": {
+        "recomputed": 3,
+        "reused": 204,
+        "reuse_pct": 98.6,
+        "seconds": 0.46
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 60.07
+    },
+    {
+      "version": 8,
+      "commit": "bc36cd1a2b",
+      "subject": "Merge branch 'stable'",
+      "lineages": 208,
+      "added": 1,
+      "modified": 10,
+      "unchanged": 197,
+      "full": {
+        "recomputed": 208,
+        "seconds": 27.719
+      },
+      "incremental": {
+        "recomputed": 11,
+        "reused": 197,
+        "reuse_pct": 94.7,
+        "seconds": 16.065
+      },
+      "expected_unchanged": 197,
+      "speedup_x": 1.73
+    },
+    {
+      "version": 9,
+      "commit": "c3535905c7",
+      "subject": "Fix broken fish completion and multiline help string",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 27.734
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 0.053
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 528.04
+    },
+    {
+      "version": 10,
+      "commit": "3a40e43e8f",
+      "subject": "Merge branch 'stable'",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 27.747
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 0.055
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 504.06
+    },
+    {
+      "version": 11,
+      "commit": "6a141c3681",
+      "subject": "remove colorama (#3505)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 2,
+      "unchanged": 206,
+      "full": {
+        "recomputed": 208,
+        "seconds": 27.726
+      },
+      "incremental": {
+        "recomputed": 2,
+        "reused": 206,
+        "reuse_pct": 99.0,
+        "seconds": 0.16
+      },
+      "expected_unchanged": 206,
+      "speedup_x": 173.06
+    },
+    {
+      "version": 12,
+      "commit": "1a994adbb1",
+      "subject": "Merge stable into main (#3521)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 27,
+      "unchanged": 181,
+      "full": {
+        "recomputed": 208,
+        "seconds": 27.436
+      },
+      "incremental": {
+        "recomputed": 27,
+        "reused": 181,
+        "reuse_pct": 87.0,
+        "seconds": 23.37
+      },
+      "expected_unchanged": 181,
+      "speedup_x": 1.17
+    },
+    {
+      "version": 13,
+      "commit": "c48021040a",
+      "subject": "Add help parameter to arguments (#3473)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 2,
+      "unchanged": 206,
+      "full": {
+        "recomputed": 208,
+        "seconds": 27.558
+      },
+      "incremental": {
+        "recomputed": 2,
+        "reused": 206,
+        "reuse_pct": 99.0,
+        "seconds": 2.055
+      },
+      "expected_unchanged": 206,
+      "speedup_x": 13.41
+    },
+    {
+      "version": 14,
+      "commit": "8a1b1a33d7",
+      "subject": "Merge `stable` into `main` after `CHANGES` rST to Markdown c",
+      "lineages": 204,
+      "added": 0,
+      "modified": 31,
+      "unchanged": 173,
+      "full": {
+        "recomputed": 204,
+        "seconds": 28.485
+      },
+      "incremental": {
+        "recomputed": 31,
+        "reused": 173,
+        "reuse_pct": 84.8,
+        "seconds": 24.39
+      },
+      "expected_unchanged": 173,
+      "speedup_x": 1.17
+    },
+    {
+      "version": 15,
+      "commit": "679a7a0ecc",
+      "subject": "Optimize `split_arg_string` with `extend(...)` instead of a ",
+      "lineages": 204,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 203,
+      "full": {
+        "recomputed": 204,
+        "seconds": 28.638
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 203,
+        "reuse_pct": 99.5,
+        "seconds": 0.05
+      },
+      "expected_unchanged": 203,
+      "speedup_x": 573.14
+    },
+    {
+      "version": 16,
+      "commit": "240603f240",
+      "subject": "Merge remote-tracking branch 'upstream/stable' into merge-st",
+      "lineages": 205,
+      "added": 1,
+      "modified": 10,
+      "unchanged": 194,
+      "full": {
+        "recomputed": 205,
+        "seconds": 28.608
+      },
+      "incremental": {
+        "recomputed": 11,
+        "reused": 194,
+        "reuse_pct": 94.6,
+        "seconds": 1.298
+      },
+      "expected_unchanged": 194,
+      "speedup_x": 22.04
+    },
+    {
+      "version": 17,
+      "commit": "fe3ad76e58",
+      "subject": "Strip ANSI from `confirm()` and `prompt()` (#3653)",
+      "lineages": 205,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 205,
+        "seconds": 28.609
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 204,
+        "reuse_pct": 99.5,
+        "seconds": 0.047
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 612.72
+    },
+    {
+      "version": 18,
+      "commit": "16fc00e2f4",
+      "subject": "Do not trigger a `BytesWarning` under `python -bb` (#3642)",
+      "lineages": 205,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 205,
+        "seconds": 28.684
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 204,
+        "reuse_pct": 99.5,
+        "seconds": 0.418
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 68.68
+    },
+    {
+      "version": 19,
+      "commit": "94c191ca6c",
+      "subject": "Add `@custom_version_option`, freeze `@version_option` (#358",
+      "lineages": 206,
+      "added": 1,
+      "modified": 1,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 206,
+        "seconds": 28.574
+      },
+      "incremental": {
+        "recomputed": 2,
+        "reused": 204,
+        "reuse_pct": 99.0,
+        "seconds": 0.276
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 103.65
+    },
+    {
+      "version": 20,
+      "commit": "a44e9f05ed",
+      "subject": "Update documentation following Colorama removal (#3671)",
+      "lineages": 206,
+      "added": 0,
+      "modified": 2,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 206,
+        "seconds": 28.613
+      },
+      "incremental": {
+        "recomputed": 2,
+        "reused": 204,
+        "reuse_pct": 99.0,
+        "seconds": 0.157
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 182.33
+    },
+    {
+      "version": 21,
+      "commit": "8a4ce84256",
+      "subject": "Validate `style()` color arguments (#3677)",
+      "lineages": 206,
+      "added": 0,
+      "modified": 2,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 206,
+        "seconds": 28.69
+      },
+      "incremental": {
+        "recomputed": 2,
+        "reused": 204,
+        "reuse_pct": 99.0,
+        "seconds": 0.259
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 110.77
+    },
+    {
+      "version": 22,
+      "commit": "8c1a0a7abb",
+      "subject": "Strip all ANSI sequences (#3681)",
+      "lineages": 206,
+      "added": 0,
+      "modified": 0,
+      "unchanged": 206,
+      "full": {
+        "recomputed": 206,
+        "seconds": 28.665
+      },
+      "incremental": {
+        "recomputed": 0,
+        "reused": 206,
+        "reuse_pct": 100.0,
+        "seconds": 0.0
+      },
+      "expected_unchanged": 206,
+      "speedup_x": 57969.1
+    },
+    {
+      "version": 23,
+      "commit": "b67832c216",
+      "subject": "Fix parsing when a parameter is named `help` (#3678)",
+      "lineages": 206,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 205,
+      "full": {
+        "recomputed": 206,
+        "seconds": 28.564
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 205,
+        "reuse_pct": 99.5,
+        "seconds": 4.548
+      },
+      "expected_unchanged": 205,
+      "speedup_x": 6.28
+    },
+    {
+      "version": 24,
+      "commit": "b551fe8571",
+      "subject": "Streamline option flag management (#3641)",
+      "lineages": 206,
+      "added": 0,
+      "modified": 4,
+      "unchanged": 202,
+      "full": {
+        "recomputed": 206,
+        "seconds": 34.232
+      },
+      "incremental": {
+        "recomputed": 4,
+        "reused": 202,
+        "reuse_pct": 98.1,
+        "seconds": 7.469
+      },
+      "expected_unchanged": 202,
+      "speedup_x": 4.58
+    },
+    {
+      "version": 25,
+      "commit": "7df2f82305",
+      "subject": "Add built-in PowerShell shell completion support (#3637)",
+      "lineages": 207,
+      "added": 1,
+      "modified": 0,
+      "unchanged": 206,
+      "full": {
+        "recomputed": 207,
+        "seconds": 34.126
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 206,
+        "reuse_pct": 99.5,
+        "seconds": 0.05
+      },
+      "expected_unchanged": 206,
+      "speedup_x": 679.75
+    },
+    {
+      "version": 26,
+      "commit": "333c28d79c",
+      "subject": "Mark clearly functions private status. Deprecated Python 2 u",
+      "lineages": 208,
+      "added": 8,
+      "modified": 6,
+      "unchanged": 194,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.209
+      },
+      "incremental": {
+        "recomputed": 14,
+        "reused": 194,
+        "reuse_pct": 93.3,
+        "seconds": 16.696
+      },
+      "expected_unchanged": 194,
+      "speedup_x": 2.05
+    },
+    {
+      "version": 27,
+      "commit": "cfa01eeb78",
+      "subject": "Deprecate `isolated_filesystem` and document its limits (#37",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.3
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 2.574
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 13.32
+    },
+    {
+      "version": 28,
+      "commit": "5e906a8afb",
+      "subject": "`click.prompt` typing clarifications / improvements (#3407)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 4,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 208,
+        "seconds": 33.818
+      },
+      "incremental": {
+        "recomputed": 4,
+        "reused": 204,
+        "reuse_pct": 98.1,
+        "seconds": 0.735
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 45.98
+    },
+    {
+      "version": 29,
+      "commit": "00e592cea7",
+      "subject": "Pre-8.5.0 release changelog and doc fixes (#3697)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 5,
+      "unchanged": 203,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.017
+      },
+      "incremental": {
+        "recomputed": 5,
+        "reused": 203,
+        "reuse_pct": 97.6,
+        "seconds": 0.642
+      },
+      "expected_unchanged": 203,
+      "speedup_x": 53.01
+    },
+    {
+      "version": 30,
+      "commit": "9c4dfdaebe",
+      "subject": "Sort help args to make them reproducible (#3728)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.01
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 4.732
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 7.19
+    },
+    {
+      "version": 31,
+      "commit": "8b44edfff7",
+      "subject": "Changed `tempfile.NamedTemporaryFile` mode to `w` (#3739)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.716
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 0.088
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 393.22
+    },
+    {
+      "version": 32,
+      "commit": "150d1071d6",
+      "subject": "Settles progress bar on its final position (#3769)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.674
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 1.139
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 30.45
+    },
+    {
+      "version": 33,
+      "commit": "fc5c7f45da",
+      "subject": "Fix error reporting on Windows when an error is raised in th",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.601
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 0.103
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 335.7
+    },
+    {
+      "version": 34,
+      "commit": "f36d58bbd7",
+      "subject": "Refactor pager stream handling (#3767)",
+      "lineages": 206,
+      "added": 1,
+      "modified": 5,
+      "unchanged": 200,
+      "full": {
+        "recomputed": 206,
+        "seconds": 34.749
+      },
+      "incremental": {
+        "recomputed": 6,
+        "reused": 200,
+        "reuse_pct": 97.1,
+        "seconds": 0.579
+      },
+      "expected_unchanged": 200,
+      "speedup_x": 60.02
+    },
+    {
+      "version": 35,
+      "commit": "61b69e967e",
+      "subject": "Resolve the pager command once, in `_pager_contextmanager` (",
+      "lineages": 207,
+      "added": 1,
+      "modified": 5,
+      "unchanged": 201,
+      "full": {
+        "recomputed": 207,
+        "seconds": 34.545
+      },
+      "incremental": {
+        "recomputed": 6,
+        "reused": 201,
+        "reuse_pct": 97.1,
+        "seconds": 0.38
+      },
+      "expected_unchanged": 201,
+      "speedup_x": 90.84
+    },
+    {
+      "version": 36,
+      "commit": "2103e15768",
+      "subject": "Forward all user's parameters set in `PAGER` and improve fla",
+      "lineages": 208,
+      "added": 1,
+      "modified": 3,
+      "unchanged": 204,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.634
+      },
+      "incremental": {
+        "recomputed": 4,
+        "reused": 204,
+        "reuse_pct": 98.1,
+        "seconds": 0.305
+      },
+      "expected_unchanged": 204,
+      "speedup_x": 113.41
+    },
+    {
+      "version": 37,
+      "commit": "e1fd5946ab",
+      "subject": "Add support of `pathlib.Path` to `edit` (#3781)",
+      "lineages": 208,
+      "added": 0,
+      "modified": 1,
+      "unchanged": 207,
+      "full": {
+        "recomputed": 208,
+        "seconds": 34.719
+      },
+      "incremental": {
+        "recomputed": 1,
+        "reused": 207,
+        "reuse_pct": 99.5,
+        "seconds": 0.187
+      },
+      "expected_unchanged": 207,
+      "speedup_x": 185.38
+    },
+    {
+      "version": 38,
+      "commit": "6aabf099bf",
+      "subject": "Stable (#3851)",
+      "lineages": 209,
+      "added": 1,
+      "modified": 3,
+      "unchanged": 205,
+      "full": {
+        "recomputed": 209,
+        "seconds": 34.078
+      },
+      "incremental": {
+        "recomputed": 4,
+        "reused": 205,
+        "reuse_pct": 98.1,
+        "seconds": 7.395
+      },
+      "expected_unchanged": 205,
+      "speedup_x": 4.61
+    },
+    {
+      "version": 39,
+      "commit": "3cbaa76b60",
+      "subject": "Merge stable into main (#3876)",
+      "lineages": 209,
+      "added": 0,
+      "modified": 6,
+      "unchanged": 203,
+      "full": {
+        "recomputed": 209,
+        "seconds": 34.795
+      },
+      "incremental": {
+        "recomputed": 6,
+        "reused": 203,
+        "reuse_pct": 97.1,
+        "seconds": 11.47
+      },
+      "expected_unchanged": 203,
+      "speedup_x": 3.03
+    },
+    {
+      "version": 40,
+      "commit": "06b2a67874",
+      "subject": "Deprecate parameter names that are: not a Python identifier,",
+      "lineages": 210,
+      "added": 1,
+      "modified": 3,
+      "unchanged": 206,
+      "full": {
+        "recomputed": 210,
+        "seconds": 36.377
+      },
+      "incremental": {
+        "recomputed": 4,
+        "reused": 206,
+        "reuse_pct": 98.1,
+        "seconds": 7.939
+      },
+      "expected_unchanged": 206,
+      "speedup_x": 4.58
+    }
+  ],
+  "totals": {
+    "embeddings_full": 8275,
+    "embeddings_incremental": 379,
+    "embeddings_saved": 7896,
+    "saved_pct": 95.4,
+    "seconds_full": 1232.05,
+    "seconds_incremental": 167.19,
+    "speedup_x": 7.37
+  },
+  "retrieval": {
+    "n_queries": 83,
+    "p1_version_targeted": {
+      "top1_correct_lineage": 0.7952,
+      "median_latency_ms": 59.1
+    },
+    "bonus_all_versions": {
+      "duplicate_pct_at_10_all_versions": 89.76,
+      "duplicate_pct_at_10_collapsed": 0.0,
+      "lineage_recall_at_10_all_versions": 0.8072,
+      "lineage_recall_at_10_collapsed": 0.8795,
+      "top1_exact_version": 0.0964,
+      "top1_token_consistent_version": 0.506
+    }
+  },
+  "warnings": [],
+  "when": "2026-09-30 11:18:52",
+  "delta_vectors": {
+    "n_queries": 83,
+    "lineage_k": 10,
+    "rows": 8275,
+    "lineages": 224,
+    "distinct_entries": 379,
+    "index_bytes_current": 16947200,
+    "index_bytes_delta": 882980,
+    "size_ratio_delta_over_current": 0.0521,
+    "top1_lineage": {
+      "current": 0.8072,
+      "delta": 0.8072
+    },
+    "top1_exact_version": {
+      "current": 0.0964,
+      "delta": 0.5181
+    },
+    "top1_token_consistent_version": {
+      "current": 0.506,
+      "delta": 0.5783
+    },
+    "top1_agreement_delta_vs_current": 0.2289
+  }
+}

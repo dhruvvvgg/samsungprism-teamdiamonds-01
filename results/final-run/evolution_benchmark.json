@@ -1,0 +1,35 @@
+{
+  "index_dir": "versions",
+  "fixture": {
+    "n_snippets": 300,
+    "n_versions": 4,
+    "seed": 0,
+    "unchanged_rate": 0.25,
+    "source": "synthetic",
+    "n_queries": 435,
+    "n_version_specific": 135
+  },
+  "k": 10,
+  "model": "codefuse-ai/F2LLM-v2-0.6B",
+  "mock_encoder": false,
+  "n_queries": 435,
+  "seconds": 473.24,
+  "duplication_at_k": {
+    "all_versions_duplicate_pct_mean": 64.87,
+    "collapsed_duplicate_pct_mean": 0.0,
+    "all_versions_distinct_lineages_mean": 3.51,
+    "collapsed_distinct_lineages_mean": 10.0
+  },
+  "generic_queries": {
+    "n": 300,
+    "lineage_recall_at_10_all_versions": 1.0,
+    "lineage_recall_at_10_collapsed": 1.0
+  },
+  "version_specific_queries": {
+    "n": 135,
+    "top1_exact_version": 0.4593,
+    "top1_token_consistent_version": 0.6593,
+    "version_filtered_top1_correct_snippet": 1.0
+  },
+  "when": "2026-09-30 12:12:21"
+}

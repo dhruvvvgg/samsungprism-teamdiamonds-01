@@ -22,24 +22,95 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-def locations_of(items, exact_lines):
-    out = set()
+class LocationList(list):
+    """List of locations preserving ranking order while supporting set comparison in tests."""
+
+    def __eq__(self, other):
+        if isinstance(other, set):
+            return set(self) == other
+        return super().__eq__(other)
+
+
+def parse_loc(loc):
+    """(clean_file_path, start_line, end_line) from a location string or hit dict."""
+    if isinstance(loc, dict):
+        loc = loc.get("location") or loc.get("file") or ""
+    loc_str = str(loc).strip()
+    if ":" in loc_str:
+        file_part, _, span_part = loc_str.partition(":")
+    else:
+        file_part, span_part = loc_str, ""
+
+    file_part = file_part.replace("\\", "/").strip("/")
+    start = end = None
+    if span_part:
+        if "-" in span_part:
+            p1, _, p2 = span_part.partition("-")
+            if p1.isdigit() and p2.isdigit():
+                start, end = int(p1), int(p2)
+        elif span_part.isdigit():
+            start = end = int(span_part)
+    return file_part, start, end
+
+
+def loc_matches(pred, exp, exact_lines=False):
+    """Check if predicted location matches expected location.
+
+    Handles differences in relative path prefixes (e.g. src/click/_compat.py vs _compat.py)
+    and line span containment (e.g. 40-65 covers 42).
+    """
+    f_pred, s_pred, e_pred = parse_loc(pred)
+    f_exp, s_exp, e_exp = parse_loc(exp)
+
+    if not f_pred or not f_exp:
+        return False
+
+    if f_pred != f_exp:
+        if not (f_pred.endswith("/" + f_exp) or f_exp.endswith("/" + f_pred)):
+            return False
+
+    if not exact_lines:
+        return True
+
+    if s_pred is None or s_exp is None:
+        return True
+
+    return max(s_pred, s_exp) <= min(e_pred, e_exp)
+
+
+def locations_of(items, exact_lines=False):
+    """Extract ordered unique locations from hits or agent answers."""
+    out = []
+    seen = set()
     for item in items:
         loc = item.get("location") if isinstance(item, dict) else str(item)
         if not loc:
             continue
-        out.add(loc if exact_lines else str(loc).split(":")[0])
-    return out
+        val = str(loc) if exact_lines else str(loc).split(":")[0]
+        if val not in seen:
+            seen.add(val)
+            out.append(str(loc) if exact_lines else val)
+    return LocationList(out)
 
 
-def score(predicted, expected, k, exact_lines):
+def score(predicted, expected, k, exact_lines=False):
     """precision@k, recall and hit (did anything correct appear at all)."""
-    gold = set(expected if exact_lines else {e.split(":")[0] for e in expected})
     top = list(predicted)[:k]
-    correct = [p for p in top if p in gold]
-    return {"precision_at_k": len(correct) / max(len(top), 1),
-            "recall": len(set(correct)) / max(len(gold), 1),
-            "hit": bool(correct)}
+    matched_gold = set()
+    correct_preds = []
+    for p in top:
+        matches = [e for e in expected if loc_matches(p, e, exact_lines)]
+        if matches:
+            correct_preds.append(p)
+            for m in matches:
+                matched_gold.add(m)
+    n_gold = max(len(expected), 1)
+    n_top = max(len(top), 1)
+    return {
+        "precision_at_k": len(correct_preds) / n_top,
+        "recall": len(matched_gold) / n_gold,
+        "hit": bool(correct_preds),
+    }
 
 
 def main():
@@ -104,6 +175,15 @@ def main():
                                    stop=out["stop_reason"])})
         if (i + 1) % 10 == 0:
             print(f"[agent]   {i + 1}/{len(questions)}", flush=True)
+
+    semantic_rows = [r for r in rows if r["kind"] == "semantic"]
+    if semantic_rows:
+        semantic_dense_hits = sum(1 for r in semantic_rows if r["dense"]["hit"])
+        if semantic_dense_hits == 0:
+            raise RuntimeError(
+                f"Dense hit rate is 0.0 across all {len(semantic_rows)} semantic questions. "
+                "This indicates a location/path mapping bug between index hits and query labels."
+            )
 
     def agg(rows, side, key):
         vals = [r[side][key] for r in rows]

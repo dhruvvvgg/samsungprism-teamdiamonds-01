@@ -1,0 +1,30 @@
+{
+  "generated": "2026-09-30 10:23:28",
+  "results": {
+    "path": "/kaggle/working/prism-test/outputs/appsretrieval_results.json",
+    "sha256": "1d323033cfea7a688cfcaf6e885d2a5703dc9ec7e5457ba53ebbbac04cfb41a7",
+    "bytes": 10481
+  },
+  "rankings": {
+    "path": "/kaggle/working/prism-test/outputs/appsretrieval_rankings.json",
+    "sha256": "41480c0168d9b018a24d1d308beff33cdf9ae1de053f318260679e43ebd2c9bf",
+    "bytes": 3392071
+  },
+  "runtime_index": {
+    "dir": "/kaggle/working/prism-test/runtime_index",
+    "files": {
+      "embeddings.npy": {
+        "sha256": "6a36d1e9d3602acbf5a037a665186b5577550dedf52638e75e45ed57dcdaab47",
+        "bytes": 35901568
+      },
+      "doc_ids.json": {
+        "sha256": "1bcfa382363d941616759be49d3ea0c13679a4fd4deff770ed135d75ebc4a186",
+        "bytes": 77778
+      },
+      "corpus_texts.json": {
+        "sha256": "f9d23c14a0992077a2624ec80380da54db48280b8ee4adbb9aa024122d4f07b6",
+        "bytes": 5351298
+      }
+    }
+  }
+}
