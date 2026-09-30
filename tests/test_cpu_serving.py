@@ -136,9 +136,13 @@ def test_int8_is_opt_in(monkeypatch):
 
 
 def test_dense_encoder_quantize_fails_closed_without_flag():
+    import torch
     from src.retrieval.dense_encoder import DenseEncoder
     enc = DenseEncoder.__new__(DenseEncoder)
-    with pytest.raises(RuntimeError, match="int8 dynamic quantisation is rejected on CPU"):
+    enc.model = torch.nn.Sequential(torch.nn.Linear(4, 4))
+    enc.quantized_int8 = False
+    enc._check_alive = lambda: None
+    with pytest.raises(RuntimeError, match="int8 dynamic quantisation is rejected"):
         enc.quantize_dynamic_int8(allow_lossy_int8=False)
 
 
@@ -397,9 +401,9 @@ def test_quantize_raises_when_it_did_not_take(monkeypatch):
     monkeypatch.setattr(torch.ao.quantization, "quantize_dynamic",
                         lambda *a, **kw: None)         # pretend it silently no-ops
     with pytest.raises(RuntimeError, match="did not take"):
-        enc.quantize_dynamic_int8(strict=True)
+        enc.quantize_dynamic_int8(strict=True, allow_lossy_int8=True)
     assert enc.quantized_int8 is False
-    assert enc.quantize_dynamic_int8(strict=False) is False   # non-strict reports instead of raising
+    assert enc.quantize_dynamic_int8(strict=False, allow_lossy_int8=True) is False   # non-strict reports instead of raising
 
 
 def test_quantize_succeeds_and_flags_the_encoder():
@@ -410,7 +414,7 @@ def test_quantize_succeeds_and_flags_the_encoder():
     enc.model = torch.nn.Sequential(torch.nn.Linear(8, 8), torch.nn.Linear(8, 8))
     enc.quantized_int8 = False
     enc._check_alive = lambda: None
-    assert enc.quantize_dynamic_int8() is True
+    assert enc.quantize_dynamic_int8(allow_lossy_int8=True) is True
     assert enc.quantized_int8 is True
     assert enc.linear_dtype_report()[0] == []          # nothing fp32 left to encode with
 
@@ -423,7 +427,7 @@ def test_quantize_skips_a_model_with_no_linear_layers():
     enc.model = torch.nn.Sequential(torch.nn.ReLU())
     enc.quantized_int8 = False
     enc._check_alive = lambda: None
-    assert enc.quantize_dynamic_int8() is False
+    assert enc.quantize_dynamic_int8(allow_lossy_int8=True) is False
     assert enc.quantized_int8 is False
 
 

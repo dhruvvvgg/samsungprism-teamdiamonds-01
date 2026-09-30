@@ -722,9 +722,9 @@ def test_agent_benchmark_runtime_guard_aborts_on_zero_semantic_hits(demo_index, 
     monkeypatch.setattr(SearchService, "search", lambda self, q, **kw: {"hits": []})
 
     with pytest.raises(RuntimeError, match="Dense hit rate is 0.0 across all .* semantic questions"):
-        # Run main logic with sys.argv mocked
+        # Run main logic with sys.argv mocked; max-questions 30 ensures semantic questions are included
         monkeypatch.setattr("sys.argv", [
             "bench_agent.py", "--index", str(demo_index), "--source", str(EXAMPLES),
-            "--mock-encoder", "--max-questions", "10"
+            "--mock-encoder", "--max-questions", "30"
         ])
         ba.main()
