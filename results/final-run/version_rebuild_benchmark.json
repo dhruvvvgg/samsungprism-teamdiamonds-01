@@ -1,0 +1,107 @@
+{
+  "fixture": {
+    "n_snippets": 300,
+    "n_versions": 4,
+    "seed": 0,
+    "unchanged_rate": 0.25,
+    "source": "synthetic",
+    "n_queries": 435,
+    "n_version_specific": 135
+  },
+  "fixture_stats": {
+    "later_versions": 900,
+    "unchanged": 216,
+    "per_mutation": {
+      "rename": 155,
+      "remove_lines": 163,
+      "add_lines": 168,
+      "unchanged": 216,
+      "logic": 198
+    },
+    "unchanged_share": 0.24
+  },
+  "encoder": "codefuse-ai/F2LLM-v2-0.6B",
+  "mock_encoder": false,
+  "device": "cuda",
+  "per_version": [
+    {
+      "version": 1,
+      "rows": 300,
+      "full": {
+        "recomputed": 300,
+        "reused": 0,
+        "seconds": 2.287
+      },
+      "incremental": {
+        "recomputed": 300,
+        "reused": 0,
+        "reuse_pct": 0.0,
+        "seconds": 1.885
+      },
+      "expected_unchanged": 0,
+      "speedup_x": 1.21
+    },
+    {
+      "version": 2,
+      "rows": 300,
+      "full": {
+        "recomputed": 300,
+        "reused": 0,
+        "seconds": 2.107
+      },
+      "incremental": {
+        "recomputed": 223,
+        "reused": 77,
+        "reuse_pct": 25.7,
+        "seconds": 1.616
+      },
+      "expected_unchanged": 77,
+      "speedup_x": 1.3
+    },
+    {
+      "version": 3,
+      "rows": 300,
+      "full": {
+        "recomputed": 300,
+        "reused": 0,
+        "seconds": 2.261
+      },
+      "incremental": {
+        "recomputed": 226,
+        "reused": 74,
+        "reuse_pct": 24.7,
+        "seconds": 1.778
+      },
+      "expected_unchanged": 72,
+      "speedup_x": 1.27
+    },
+    {
+      "version": 4,
+      "rows": 300,
+      "full": {
+        "recomputed": 300,
+        "reused": 0,
+        "seconds": 2.406
+      },
+      "incremental": {
+        "recomputed": 229,
+        "reused": 71,
+        "reuse_pct": 23.7,
+        "seconds": 1.846
+      },
+      "expected_unchanged": 67,
+      "speedup_x": 1.3
+    }
+  ],
+  "totals": {
+    "embeddings_full": 1200,
+    "embeddings_incremental": 978,
+    "embeddings_saved": 222,
+    "saved_pct": 18.5,
+    "seconds_full": 9.06,
+    "seconds_incremental": 7.12,
+    "speedup_x": 1.27
+  },
+  "warnings": [],
+  "when": "2026-09-30 12:04:12"
+}

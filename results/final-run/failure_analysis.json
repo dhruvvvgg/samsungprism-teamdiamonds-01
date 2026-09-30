@@ -1,0 +1,1023 @@
+{
+  "k": 10,
+  "n_queries": 3765,
+  "n_in_top_k": 3688,
+  "n_failures": 77,
+  "failure_rate": 0.0205,
+  "groups": {
+    "near_duplicate_corpus": 14,
+    "other": 56,
+    "generic_wording": 7
+  },
+  "median_query_chars": 1601,
+  "examples": [
+    "q5155",
+    "q5090",
+    "q5696",
+    "q5185",
+    "q5199"
+  ],
+  "failures": [
+    {
+      "query_id": "q5090",
+      "rank_of_relevant": 15,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 71% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d5090",
+      "top_docs": [
+        "d8636",
+        "d6046",
+        "d8097"
+      ],
+      "query_chars": 892
+    },
+    {
+      "query_id": "q5155",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "100 query terms, best overlap with a retrieved document 33% -- no obvious cause",
+      "expected_doc": "d5155",
+      "top_docs": [
+        "d5881",
+        "d7902",
+        "d2357"
+      ],
+      "query_chars": 1902
+    },
+    {
+      "query_id": "q5185",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "70 query terms, best overlap with a retrieved document 0% -- no obvious cause",
+      "expected_doc": "d5185",
+      "top_docs": [
+        "d8340",
+        "d5442",
+        "d8650"
+      ],
+      "query_chars": 1608
+    },
+    {
+      "query_id": "q5199",
+      "rank_of_relevant": 19,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 60% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d5199",
+      "top_docs": [
+        "d8086",
+        "d8385",
+        "d6101"
+      ],
+      "query_chars": 1408
+    },
+    {
+      "query_id": "q5206",
+      "rank_of_relevant": 12,
+      "group": "other",
+      "evidence": "96 query terms, best overlap with a retrieved document 43% -- no obvious cause",
+      "expected_doc": "d5206",
+      "top_docs": [
+        "d1750",
+        "d7810",
+        "d1720"
+      ],
+      "query_chars": 1756
+    },
+    {
+      "query_id": "q5244",
+      "rank_of_relevant": 20,
+      "group": "other",
+      "evidence": "108 query terms, best overlap with a retrieved document 22% -- no obvious cause",
+      "expected_doc": "d5244",
+      "top_docs": [
+        "d7715",
+        "d8488",
+        "d2216"
+      ],
+      "query_chars": 2215
+    },
+    {
+      "query_id": "q5367",
+      "rank_of_relevant": 14,
+      "group": "other",
+      "evidence": "48 query terms, best overlap with a retrieved document 46% -- no obvious cause",
+      "expected_doc": "d5367",
+      "top_docs": [
+        "d7836",
+        "d5247",
+        "d6046"
+      ],
+      "query_chars": 955
+    },
+    {
+      "query_id": "q5374",
+      "rank_of_relevant": 23,
+      "group": "other",
+      "evidence": "84 query terms, best overlap with a retrieved document 20% -- no obvious cause",
+      "expected_doc": "d5374",
+      "top_docs": [
+        "d5425",
+        "d5284",
+        "d6860"
+      ],
+      "query_chars": 1280
+    },
+    {
+      "query_id": "q5405",
+      "rank_of_relevant": 22,
+      "group": "other",
+      "evidence": "62 query terms, best overlap with a retrieved document 19% -- no obvious cause",
+      "expected_doc": "d5405",
+      "top_docs": [
+        "d6036",
+        "d5826",
+        "d8094"
+      ],
+      "query_chars": 931
+    },
+    {
+      "query_id": "q5412",
+      "rank_of_relevant": 90,
+      "group": "other",
+      "evidence": "94 query terms, best overlap with a retrieved document 42% -- no obvious cause",
+      "expected_doc": "d5412",
+      "top_docs": [
+        "d8019",
+        "d6620",
+        "d5124"
+      ],
+      "query_chars": 1417
+    },
+    {
+      "query_id": "q5445",
+      "rank_of_relevant": 17,
+      "group": "other",
+      "evidence": "84 query terms, best overlap with a retrieved document 44% -- no obvious cause",
+      "expected_doc": "d5445",
+      "top_docs": [
+        "d5439",
+        "d6048",
+        "d5405"
+      ],
+      "query_chars": 1709
+    },
+    {
+      "query_id": "q5463",
+      "rank_of_relevant": 61,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 75% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d5463",
+      "top_docs": [
+        "d6527",
+        "d5941",
+        "d6249"
+      ],
+      "query_chars": 1192
+    },
+    {
+      "query_id": "q5521",
+      "rank_of_relevant": 87,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 67% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d5521",
+      "top_docs": [
+        "d2067",
+        "d6130",
+        "d8101"
+      ],
+      "query_chars": 1641
+    },
+    {
+      "query_id": "q5542",
+      "rank_of_relevant": 12,
+      "group": "other",
+      "evidence": "71 query terms, best overlap with a retrieved document 41% -- no obvious cause",
+      "expected_doc": "d5542",
+      "top_docs": [
+        "d2267",
+        "d8651",
+        "d2102"
+      ],
+      "query_chars": 1100
+    },
+    {
+      "query_id": "q5668",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "61 query terms, best overlap with a retrieved document 4% -- no obvious cause",
+      "expected_doc": "d5668",
+      "top_docs": [
+        "d6288",
+        "d5840",
+        "d7124"
+      ],
+      "query_chars": 936
+    },
+    {
+      "query_id": "q5696",
+      "rank_of_relevant": null,
+      "group": "generic_wording",
+      "evidence": "only 14 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d5696",
+      "top_docs": [
+        "d8253",
+        "d3921",
+        "d2659"
+      ],
+      "query_chars": 245
+    },
+    {
+      "query_id": "q5706",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "119 query terms, best overlap with a retrieved document 6% -- no obvious cause",
+      "expected_doc": "d5706",
+      "top_docs": [
+        "d7932",
+        "d2273",
+        "d6096"
+      ],
+      "query_chars": 2055
+    },
+    {
+      "query_id": "q5744",
+      "rank_of_relevant": 12,
+      "group": "other",
+      "evidence": "59 query terms, best overlap with a retrieved document 43% -- no obvious cause",
+      "expected_doc": "d5744",
+      "top_docs": [
+        "d8157",
+        "d6846",
+        "d5800"
+      ],
+      "query_chars": 931
+    },
+    {
+      "query_id": "q5764",
+      "rank_of_relevant": 15,
+      "group": "other",
+      "evidence": "121 query terms, best overlap with a retrieved document 46% -- no obvious cause",
+      "expected_doc": "d5764",
+      "top_docs": [
+        "d6377",
+        "d5971",
+        "d830"
+      ],
+      "query_chars": 2297
+    },
+    {
+      "query_id": "q5878",
+      "rank_of_relevant": 56,
+      "group": "other",
+      "evidence": "96 query terms, best overlap with a retrieved document 29% -- no obvious cause",
+      "expected_doc": "d5878",
+      "top_docs": [
+        "d2102",
+        "d7558",
+        "d8651"
+      ],
+      "query_chars": 2168
+    },
+    {
+      "query_id": "q5950",
+      "rank_of_relevant": 29,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 67% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d5950",
+      "top_docs": [
+        "d5082",
+        "d5324",
+        "d8366"
+      ],
+      "query_chars": 920
+    },
+    {
+      "query_id": "q5967",
+      "rank_of_relevant": 13,
+      "group": "other",
+      "evidence": "47 query terms, best overlap with a retrieved document 29% -- no obvious cause",
+      "expected_doc": "d5967",
+      "top_docs": [
+        "d2918",
+        "d4072",
+        "d951"
+      ],
+      "query_chars": 675
+    },
+    {
+      "query_id": "q6010",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "111 query terms, best overlap with a retrieved document 47% -- no obvious cause",
+      "expected_doc": "d6010",
+      "top_docs": [
+        "d5904",
+        "d6289",
+        "d5872"
+      ],
+      "query_chars": 1831
+    },
+    {
+      "query_id": "q6075",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "25 query terms, best overlap with a retrieved document 50% -- no obvious cause",
+      "expected_doc": "d6075",
+      "top_docs": [
+        "d5364",
+        "d7903",
+        "d5178"
+      ],
+      "query_chars": 1256
+    },
+    {
+      "query_id": "q6111",
+      "rank_of_relevant": 42,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 75% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d6111",
+      "top_docs": [
+        "d5317",
+        "d6897",
+        "d5363"
+      ],
+      "query_chars": 1649
+    },
+    {
+      "query_id": "q6196",
+      "rank_of_relevant": 46,
+      "group": "other",
+      "evidence": "127 query terms, best overlap with a retrieved document 43% -- no obvious cause",
+      "expected_doc": "d6196",
+      "top_docs": [
+        "d8634",
+        "d2175",
+        "d8411"
+      ],
+      "query_chars": 1372
+    },
+    {
+      "query_id": "q6199",
+      "rank_of_relevant": 22,
+      "group": "other",
+      "evidence": "59 query terms, best overlap with a retrieved document 39% -- no obvious cause",
+      "expected_doc": "d6199",
+      "top_docs": [
+        "d8210",
+        "d7398",
+        "d6872"
+      ],
+      "query_chars": 1434
+    },
+    {
+      "query_id": "q6220",
+      "rank_of_relevant": 63,
+      "group": "other",
+      "evidence": "90 query terms, best overlap with a retrieved document 40% -- no obvious cause",
+      "expected_doc": "d6220",
+      "top_docs": [
+        "d7385",
+        "d7998",
+        "d7918"
+      ],
+      "query_chars": 1288
+    },
+    {
+      "query_id": "q6256",
+      "rank_of_relevant": 18,
+      "group": "other",
+      "evidence": "107 query terms, best overlap with a retrieved document 6% -- no obvious cause",
+      "expected_doc": "d6256",
+      "top_docs": [
+        "d7679",
+        "d6728",
+        "d5542"
+      ],
+      "query_chars": 1707
+    },
+    {
+      "query_id": "q6285",
+      "rank_of_relevant": 15,
+      "group": "other",
+      "evidence": "96 query terms, best overlap with a retrieved document 41% -- no obvious cause",
+      "expected_doc": "d6285",
+      "top_docs": [
+        "d7385",
+        "d7680",
+        "d2020"
+      ],
+      "query_chars": 1539
+    },
+    {
+      "query_id": "q6312",
+      "rank_of_relevant": 28,
+      "group": "other",
+      "evidence": "115 query terms, best overlap with a retrieved document 23% -- no obvious cause",
+      "expected_doc": "d6312",
+      "top_docs": [
+        "d6728",
+        "d2279",
+        "d6800"
+      ],
+      "query_chars": 1626
+    },
+    {
+      "query_id": "q6374",
+      "rank_of_relevant": 13,
+      "group": "other",
+      "evidence": "32 query terms, best overlap with a retrieved document 50% -- no obvious cause",
+      "expected_doc": "d6374",
+      "top_docs": [
+        "d7967",
+        "d6649",
+        "d5797"
+      ],
+      "query_chars": 1132
+    },
+    {
+      "query_id": "q6518",
+      "rank_of_relevant": 68,
+      "group": "other",
+      "evidence": "77 query terms, best overlap with a retrieved document 27% -- no obvious cause",
+      "expected_doc": "d6518",
+      "top_docs": [
+        "d5655",
+        "d722",
+        "d6752"
+      ],
+      "query_chars": 1525
+    },
+    {
+      "query_id": "q6539",
+      "rank_of_relevant": 71,
+      "group": "other",
+      "evidence": "59 query terms, best overlap with a retrieved document 41% -- no obvious cause",
+      "expected_doc": "d6539",
+      "top_docs": [
+        "d7895",
+        "d7663",
+        "d7260"
+      ],
+      "query_chars": 1111
+    },
+    {
+      "query_id": "q6678",
+      "rank_of_relevant": 24,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 60% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d6678",
+      "top_docs": [
+        "d6822",
+        "d6027",
+        "d8025"
+      ],
+      "query_chars": 1288
+    },
+    {
+      "query_id": "q6680",
+      "rank_of_relevant": 16,
+      "group": "other",
+      "evidence": "71 query terms, best overlap with a retrieved document 44% -- no obvious cause",
+      "expected_doc": "d6680",
+      "top_docs": [
+        "d8745",
+        "d5789",
+        "d1085"
+      ],
+      "query_chars": 973
+    },
+    {
+      "query_id": "q6692",
+      "rank_of_relevant": 18,
+      "group": "other",
+      "evidence": "103 query terms, best overlap with a retrieved document 40% -- no obvious cause",
+      "expected_doc": "d6692",
+      "top_docs": [
+        "d4254",
+        "d6481",
+        "d6611"
+      ],
+      "query_chars": 1511
+    },
+    {
+      "query_id": "q6811",
+      "rank_of_relevant": 13,
+      "group": "other",
+      "evidence": "81 query terms, best overlap with a retrieved document 50% -- no obvious cause",
+      "expected_doc": "d6811",
+      "top_docs": [
+        "d5780",
+        "d5826",
+        "d5085"
+      ],
+      "query_chars": 965
+    },
+    {
+      "query_id": "q6827",
+      "rank_of_relevant": 13,
+      "group": "other",
+      "evidence": "66 query terms, best overlap with a retrieved document 38% -- no obvious cause",
+      "expected_doc": "d6827",
+      "top_docs": [
+        "d7027",
+        "d6878",
+        "d6049"
+      ],
+      "query_chars": 1200
+    },
+    {
+      "query_id": "q6849",
+      "rank_of_relevant": 15,
+      "group": "other",
+      "evidence": "65 query terms, best overlap with a retrieved document 39% -- no obvious cause",
+      "expected_doc": "d6849",
+      "top_docs": [
+        "d6239",
+        "d2196",
+        "d5729"
+      ],
+      "query_chars": 1155
+    },
+    {
+      "query_id": "q6984",
+      "rank_of_relevant": 12,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 73% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d6984",
+      "top_docs": [
+        "d618",
+        "d7437",
+        "d1394"
+      ],
+      "query_chars": 1424
+    },
+    {
+      "query_id": "q7124",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "104 query terms, best overlap with a retrieved document 19% -- no obvious cause",
+      "expected_doc": "d7124",
+      "top_docs": [
+        "d6135",
+        "d6179",
+        "d7155"
+      ],
+      "query_chars": 1545
+    },
+    {
+      "query_id": "q7164",
+      "rank_of_relevant": 45,
+      "group": "other",
+      "evidence": "44 query terms, best overlap with a retrieved document 50% -- no obvious cause",
+      "expected_doc": "d7164",
+      "top_docs": [
+        "d1074",
+        "d5265",
+        "d5682"
+      ],
+      "query_chars": 646
+    },
+    {
+      "query_id": "q7184",
+      "rank_of_relevant": null,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 62% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d7184",
+      "top_docs": [
+        "d8477",
+        "d8652",
+        "d5941"
+      ],
+      "query_chars": 696
+    },
+    {
+      "query_id": "q7197",
+      "rank_of_relevant": 25,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 60% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d7197",
+      "top_docs": [
+        "d6849",
+        "d8634",
+        "d6146"
+      ],
+      "query_chars": 1013
+    },
+    {
+      "query_id": "q7240",
+      "rank_of_relevant": 34,
+      "group": "other",
+      "evidence": "89 query terms, best overlap with a retrieved document 44% -- no obvious cause",
+      "expected_doc": "d7240",
+      "top_docs": [
+        "d6471",
+        "d7567",
+        "d924"
+      ],
+      "query_chars": 1866
+    },
+    {
+      "query_id": "q7349",
+      "rank_of_relevant": 60,
+      "group": "generic_wording",
+      "evidence": "only 22 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d7349",
+      "top_docs": [
+        "d8108",
+        "d5966",
+        "d8400"
+      ],
+      "query_chars": 341
+    },
+    {
+      "query_id": "q7405",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "58 query terms, best overlap with a retrieved document 33% -- no obvious cause",
+      "expected_doc": "d7405",
+      "top_docs": [
+        "d5859",
+        "d8365",
+        "d7755"
+      ],
+      "query_chars": 630
+    },
+    {
+      "query_id": "q7455",
+      "rank_of_relevant": 12,
+      "group": "other",
+      "evidence": "149 query terms, best overlap with a retrieved document 19% -- no obvious cause",
+      "expected_doc": "d7455",
+      "top_docs": [
+        "d7379",
+        "d7914",
+        "d7856"
+      ],
+      "query_chars": 2653
+    },
+    {
+      "query_id": "q7522",
+      "rank_of_relevant": 12,
+      "group": "other",
+      "evidence": "55 query terms, best overlap with a retrieved document 31% -- no obvious cause",
+      "expected_doc": "d7522",
+      "top_docs": [
+        "d8637",
+        "d6779",
+        "d6527"
+      ],
+      "query_chars": 908
+    },
+    {
+      "query_id": "q7524",
+      "rank_of_relevant": 68,
+      "group": "other",
+      "evidence": "53 query terms, best overlap with a retrieved document 26% -- no obvious cause",
+      "expected_doc": "d7524",
+      "top_docs": [
+        "d5845",
+        "d6265",
+        "d6385"
+      ],
+      "query_chars": 1112
+    },
+    {
+      "query_id": "q7532",
+      "rank_of_relevant": 15,
+      "group": "other",
+      "evidence": "71 query terms, best overlap with a retrieved document 39% -- no obvious cause",
+      "expected_doc": "d7532",
+      "top_docs": [
+        "d7001",
+        "d7428",
+        "d8190"
+      ],
+      "query_chars": 1801
+    },
+    {
+      "query_id": "q7583",
+      "rank_of_relevant": 36,
+      "group": "other",
+      "evidence": "51 query terms, best overlap with a retrieved document 52% -- no obvious cause",
+      "expected_doc": "d7583",
+      "top_docs": [
+        "d7428",
+        "d7094",
+        "d7334"
+      ],
+      "query_chars": 842
+    },
+    {
+      "query_id": "q7627",
+      "rank_of_relevant": null,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 71% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d7627",
+      "top_docs": [
+        "d1127",
+        "d706",
+        "d826"
+      ],
+      "query_chars": 1349
+    },
+    {
+      "query_id": "q7698",
+      "rank_of_relevant": 36,
+      "group": "generic_wording",
+      "evidence": "only 23 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d7698",
+      "top_docs": [
+        "d7923",
+        "d8097",
+        "d5491"
+      ],
+      "query_chars": 356
+    },
+    {
+      "query_id": "q7700",
+      "rank_of_relevant": 16,
+      "group": "other",
+      "evidence": "74 query terms, best overlap with a retrieved document 43% -- no obvious cause",
+      "expected_doc": "d7700",
+      "top_docs": [
+        "d931",
+        "d1531",
+        "d1470"
+      ],
+      "query_chars": 1180
+    },
+    {
+      "query_id": "q7797",
+      "rank_of_relevant": 76,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 75% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d7797",
+      "top_docs": [
+        "d5317",
+        "d5738",
+        "d6101"
+      ],
+      "query_chars": 1094
+    },
+    {
+      "query_id": "q7821",
+      "rank_of_relevant": 13,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 70% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d7821",
+      "top_docs": [
+        "d7928",
+        "d7164",
+        "d709"
+      ],
+      "query_chars": 895
+    },
+    {
+      "query_id": "q7828",
+      "rank_of_relevant": 43,
+      "group": "other",
+      "evidence": "43 query terms, best overlap with a retrieved document 45% -- no obvious cause",
+      "expected_doc": "d7828",
+      "top_docs": [
+        "d5866",
+        "d5896",
+        "d7703"
+      ],
+      "query_chars": 715
+    },
+    {
+      "query_id": "q7900",
+      "rank_of_relevant": 18,
+      "group": "other",
+      "evidence": "90 query terms, best overlap with a retrieved document 24% -- no obvious cause",
+      "expected_doc": "d7900",
+      "top_docs": [
+        "d5480",
+        "d5214",
+        "d5865"
+      ],
+      "query_chars": 1996
+    },
+    {
+      "query_id": "q8006",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "133 query terms, best overlap with a retrieved document 21% -- no obvious cause",
+      "expected_doc": "d8006",
+      "top_docs": [
+        "d6331",
+        "d1254",
+        "d8057"
+      ],
+      "query_chars": 3068
+    },
+    {
+      "query_id": "q8059",
+      "rank_of_relevant": 87,
+      "group": "generic_wording",
+      "evidence": "only 7 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d8059",
+      "top_docs": [
+        "d5859",
+        "d8535",
+        "d7893"
+      ],
+      "query_chars": 211
+    },
+    {
+      "query_id": "q8089",
+      "rank_of_relevant": 16,
+      "group": "other",
+      "evidence": "128 query terms, best overlap with a retrieved document 23% -- no obvious cause",
+      "expected_doc": "d8089",
+      "top_docs": [
+        "d6378",
+        "d8061",
+        "d5096"
+      ],
+      "query_chars": 1891
+    },
+    {
+      "query_id": "q8092",
+      "rank_of_relevant": null,
+      "group": "other",
+      "evidence": "55 query terms, best overlap with a retrieved document 58% -- no obvious cause",
+      "expected_doc": "d8092",
+      "top_docs": [
+        "d7184",
+        "d8200",
+        "d6368"
+      ],
+      "query_chars": 575
+    },
+    {
+      "query_id": "q8108",
+      "rank_of_relevant": 80,
+      "group": "generic_wording",
+      "evidence": "only 17 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d8108",
+      "top_docs": [
+        "d6216",
+        "d5491",
+        "d8086"
+      ],
+      "query_chars": 333
+    },
+    {
+      "query_id": "q8110",
+      "rank_of_relevant": 87,
+      "group": "near_duplicate_corpus",
+      "evidence": "a retrieved document shares 75% of its identifiers with the expected one: the corpus holds near-identical solutions",
+      "expected_doc": "d8110",
+      "top_docs": [
+        "d5155",
+        "d8332",
+        "d5017"
+      ],
+      "query_chars": 186
+    },
+    {
+      "query_id": "q8140",
+      "rank_of_relevant": 20,
+      "group": "generic_wording",
+      "evidence": "only 14 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d8140",
+      "top_docs": [
+        "d8624",
+        "d6736",
+        "d7843"
+      ],
+      "query_chars": 259
+    },
+    {
+      "query_id": "q8226",
+      "rank_of_relevant": 11,
+      "group": "other",
+      "evidence": "181 query terms, best overlap with a retrieved document 33% -- no obvious cause",
+      "expected_doc": "d8226",
+      "top_docs": [
+        "d8108",
+        "d6518",
+        "d8065"
+      ],
+      "query_chars": 2153
+    },
+    {
+      "query_id": "q8229",
+      "rank_of_relevant": 39,
+      "group": "generic_wording",
+      "evidence": "only 13 distinct terms in the query; many documents are plausible answers",
+      "expected_doc": "d8229",
+      "top_docs": [
+        "d5017",
+        "d8191",
+        "d6075"
+      ],
+      "query_chars": 200
+    },
+    {
+      "query_id": "q8286",
+      "rank_of_relevant": 45,
+      "group": "other",
+      "evidence": "39 query terms, best overlap with a retrieved document 37% -- no obvious cause",
+      "expected_doc": "d8286",
+      "top_docs": [
+        "d5801",
+        "d6370",
+        "d5589"
+      ],
+      "query_chars": 1082
+    },
+    {
+      "query_id": "q8328",
+      "rank_of_relevant": 20,
+      "group": "other",
+      "evidence": "54 query terms, best overlap with a retrieved document 50% -- no obvious cause",
+      "expected_doc": "d8328",
+      "top_docs": [
+        "d6923",
+        "d1387",
+        "d8403"
+      ],
+      "query_chars": 964
+    },
+    {
+      "query_id": "q8331",
+      "rank_of_relevant": 31,
+      "group": "other",
+      "evidence": "47 query terms, best overlap with a retrieved document 56% -- no obvious cause",
+      "expected_doc": "d8331",
+      "top_docs": [
+        "d6544",
+        "d6249",
+        "d5462"
+      ],
+      "query_chars": 1316
+    },
+    {
+      "query_id": "q8345",
+      "rank_of_relevant": 15,
+      "group": "other",
+      "evidence": "40 query terms, best overlap with a retrieved document 43% -- no obvious cause",
+      "expected_doc": "d8345",
+      "top_docs": [
+        "d6330",
+        "d739",
+        "d8097"
+      ],
+      "query_chars": 544
+    },
+    {
+      "query_id": "q8367",
+      "rank_of_relevant": 13,
+      "group": "other",
+      "evidence": "61 query terms, best overlap with a retrieved document 18% -- no obvious cause",
+      "expected_doc": "d8367",
+      "top_docs": [
+        "d8278",
+        "d8146",
+        "d8501"
+      ],
+      "query_chars": 804
+    },
+    {
+      "query_id": "q8580",
+      "rank_of_relevant": 37,
+      "group": "other",
+      "evidence": "87 query terms, best overlap with a retrieved document 23% -- no obvious cause",
+      "expected_doc": "d8580",
+      "top_docs": [
+        "d6390",
+        "d8603",
+        "d6588"
+      ],
+      "query_chars": 1708
+    },
+    {
+      "query_id": "q8583",
+      "rank_of_relevant": 30,
+      "group": "other",
+      "evidence": "38 query terms, best overlap with a retrieved document 50% -- no obvious cause",
+      "expected_doc": "d8583",
+      "top_docs": [
+        "d8435",
+        "d1425",
+        "d6368"
+      ],
+      "query_chars": 591
+    },
+    {
+      "query_id": "q8721",
+      "rank_of_relevant": 15,
+      "group": "other",
+      "evidence": "31 query terms, best overlap with a retrieved document 33% -- no obvious cause",
+      "expected_doc": "d8721",
+      "top_docs": [
+        "d7525",
+        "d8029",
+        "d8010"
+      ],
+      "query_chars": 538
+    }
+  ]
+}

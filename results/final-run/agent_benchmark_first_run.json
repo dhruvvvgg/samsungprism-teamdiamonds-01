@@ -1,0 +1,662 @@
+{
+  "index": "history",
+  "source": "data/repos/click/src/click",
+  "k": 5,
+  "exact_lines": false,
+  "mock_encoder": false,
+  "label_summary": {
+    "n": 27,
+    "by_kind": {
+      "structural": 10,
+      "usage": 5,
+      "semantic": 12
+    },
+    "by_label_method": {
+      "grep": 15,
+      "docstring": 12
+    }
+  },
+  "overall": {
+    "n": 27,
+    "dense": {
+      "precision_at_k": 0.0,
+      "recall": 0.0,
+      "hit_rate": 0.0,
+      "median_ms": 56.1
+    },
+    "agent": {
+      "precision_at_k": 0.5846,
+      "recall": 0.758,
+      "hit_rate": 0.8519,
+      "median_ms": 54.3,
+      "median_steps": 3
+    }
+  },
+  "by_kind": {
+    "semantic": {
+      "n": 12,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit_rate": 0.0,
+        "median_ms": 55.5
+      },
+      "agent": {
+        "precision_at_k": 0.2778,
+        "recall": 0.6667,
+        "hit_rate": 0.6667,
+        "median_ms": 55.9,
+        "median_steps": 3.0
+      }
+    },
+    "structural": {
+      "n": 10,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit_rate": 0.0,
+        "median_ms": 57.4
+      },
+      "agent": {
+        "precision_at_k": 0.805,
+        "recall": 0.95,
+        "hit_rate": 1.0,
+        "median_ms": 0.2,
+        "median_steps": 1.0
+      }
+    },
+    "usage": {
+      "n": 5,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit_rate": 0.0,
+        "median_ms": 56.1
+      },
+      "agent": {
+        "precision_at_k": 0.88,
+        "recall": 0.5933,
+        "hit_rate": 1.0,
+        "median_ms": 2.4,
+        "median_steps": 1
+      }
+    }
+  },
+  "by_label_method": {
+    "docstring": {
+      "n": 12,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit_rate": 0.0,
+        "median_ms": 55.5
+      },
+      "agent": {
+        "precision_at_k": 0.2778,
+        "recall": 0.6667,
+        "hit_rate": 0.6667,
+        "median_ms": 55.9,
+        "median_steps": 3.0
+      }
+    },
+    "grep": {
+      "n": 15,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit_rate": 0.0,
+        "median_ms": 56.6
+      },
+      "agent": {
+        "precision_at_k": 0.83,
+        "recall": 0.8311,
+        "hit_rate": 1.0,
+        "median_ms": 2.4,
+        "median_steps": 1
+      }
+    }
+  },
+  "rows": [
+    {
+      "id": "who_calls::echo",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 25,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 479.3
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 0.8333333333333334,
+        "hit": true,
+        "ms": 2.9,
+        "steps": 1,
+        "stop": "evidence sufficient: 25 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::term_len",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 18,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 59.8
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 0.2,
+        "steps": 1,
+        "stop": "evidence sufficient: 20 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::get_current_context",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 9,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 59.1
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 0.6666666666666666,
+        "hit": true,
+        "ms": 0.1,
+        "steps": 1,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::format_filename",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 9,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 56.1
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 0.1,
+        "steps": 1,
+        "stop": "evidence sufficient: 9 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::isatty",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 7,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 62.7
+      },
+      "agent": {
+        "precision_at_k": 0.75,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 0.1,
+        "steps": 1,
+        "stop": "evidence sufficient: 11 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::split_arg_string",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 7,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 58.1
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 0.1,
+        "steps": 1,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::func",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 6,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 54.5
+      },
+      "agent": {
+        "precision_at_k": 0.8,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 0.1,
+        "steps": 1,
+        "stop": "evidence sufficient: 7 located results including structural facts"
+      }
+    },
+    {
+      "id": "who_calls::command",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 6,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.6
+      },
+      "agent": {
+        "precision_at_k": 0.6666666666666666,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 56.9,
+        "steps": 3,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_defined::is_ascii_encoding",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 56.6
+      },
+      "agent": {
+        "precision_at_k": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 58.4,
+        "steps": 3,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_defined::get_best_encoding",
+      "kind": "structural",
+      "label_method": "grep",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.6
+      },
+      "agent": {
+        "precision_at_k": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 57.8,
+        "steps": 3,
+        "stop": "evidence sufficient: 7 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_imported::_compat",
+      "kind": "usage",
+      "label_method": "grep",
+      "n_expected": 2,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.9
+      },
+      "agent": {
+        "precision_at_k": 0.4,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 0.5,
+        "steps": 1,
+        "stop": "evidence sufficient: 28 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_used::replace",
+      "kind": "usage",
+      "label_method": "grep",
+      "n_expected": 50,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 56.1
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 0.5,
+        "hit": true,
+        "ms": 2.4,
+        "steps": 1,
+        "stop": "evidence sufficient: 40 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_used::strict",
+      "kind": "usage",
+      "label_method": "grep",
+      "n_expected": 16,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 56.9
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 0.6666666666666666,
+        "hit": true,
+        "ms": 2.5,
+        "steps": 1,
+        "stop": "evidence sufficient: 11 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_used::stdout",
+      "kind": "usage",
+      "label_method": "grep",
+      "n_expected": 109,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 58.4
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 0.3,
+        "hit": true,
+        "ms": 2.4,
+        "steps": 1,
+        "stop": "evidence sufficient: 64 located results including structural facts"
+      }
+    },
+    {
+      "id": "where_used::stderr",
+      "kind": "usage",
+      "label_method": "grep",
+      "n_expected": 66,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 56.1
+      },
+      "agent": {
+        "precision_at_k": 1.0,
+        "recall": 0.5,
+        "hit": true,
+        "ms": 2.4,
+        "steps": 1,
+        "stop": "evidence sufficient: 33 located results including structural facts"
+      }
+    },
+    {
+      "id": "semantic::is_ascii_encoding",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 64.8
+      },
+      "agent": {
+        "precision_at_k": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 57.9,
+        "steps": 4,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "semantic::get_best_encoding",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 56.9
+      },
+      "agent": {
+        "precision_at_k": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 56.3,
+        "steps": 3,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "semantic::_stream_is_misconfigured",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 57.2
+      },
+      "agent": {
+        "precision_at_k": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 61.3,
+        "steps": 3,
+        "stop": "nothing further to follow"
+      }
+    },
+    {
+      "id": "semantic::_is_compat_stream_attr",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 86.7
+      },
+      "agent": {
+        "precision_at_k": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 76.5,
+        "steps": 4,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "semantic::update",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.6
+      },
+      "agent": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.0,
+        "steps": 2,
+        "stop": "nothing further to follow"
+      }
+    },
+    {
+      "id": "semantic::generator",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.3
+      },
+      "agent": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.1,
+        "steps": 3,
+        "stop": "nothing further to follow"
+      }
+    },
+    {
+      "id": "semantic::_resolve_pager_command",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 54.6
+      },
+      "agent": {
+        "precision_at_k": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 57.2,
+        "steps": 4,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "semantic::_less_uses_raw_mode",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.6
+      },
+      "agent": {
+        "precision_at_k": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 55.9,
+        "steps": 4,
+        "stop": "evidence sufficient: 5 located results including structural facts"
+      }
+    },
+    {
+      "id": "semantic::edit_files",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 54.4
+      },
+      "agent": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.9,
+        "steps": 3,
+        "stop": "nothing further to follow"
+      }
+    },
+    {
+      "id": "semantic::_truncate_visible",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 53.8
+      },
+      "agent": {
+        "precision_at_k": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 55.2,
+        "steps": 3,
+        "stop": "nothing further to follow"
+      }
+    },
+    {
+      "id": "semantic::_wrap_chunks",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.0
+      },
+      "agent": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 54.3,
+        "steps": 3,
+        "stop": "nothing further to follow"
+      }
+    },
+    {
+      "id": "semantic::_echo_aborted",
+      "kind": "semantic",
+      "label_method": "docstring",
+      "n_expected": 1,
+      "dense": {
+        "precision_at_k": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "ms": 55.1
+      },
+      "agent": {
+        "precision_at_k": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "ms": 54.2,
+        "steps": 3,
+        "stop": "evidence sufficient: 7 located results including structural facts"
+      }
+    }
+  ],
+  "when": "2026-09-30 11:19:22"
+}
