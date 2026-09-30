@@ -370,4 +370,3 @@ def test_backend_error_translation_messages():
     assert "Model/index unavailable -- start server or choose an index on disk" in HTML
     assert "Document or version not found" in HTML
     assert "problemBox(r.status" in HTML
-
