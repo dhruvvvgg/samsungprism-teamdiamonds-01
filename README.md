@@ -4,6 +4,8 @@ Samsung PRISM GenAI Hackathon, Theme 01.
 
 A code retrieval system for the MTEB AppsRetrieval task (CoIR-Retrieval/apps): 3,765 test queries against the full 8,765-document corpus. It ships as a working tool, not just an evaluation script: a CPU-only CLI, HTTP API and web UI that serve a prebuilt index, plus code-structure search, a retrieval agent, and incremental re-indexing across a repository's git history.
 
+Demo Video Link -- https://drive.google.com/file/d/1wDjFpHr0uRhk8UyFnRUFN7JderoIUD-Y/view?usp=drive_link
+
 ## Try it now: one-cell judge demo (Google Colab)
 
 The fastest way to use the system without installing anything. Open a new [Google Colab](https://colab.research.google.com/) notebook (a free CPU runtime is enough; no GPU is needed for serving), paste the cell below into one code cell and run it. After about two minutes it prints a public link to the web UI.
