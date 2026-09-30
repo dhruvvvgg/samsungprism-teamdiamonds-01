@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<!--
+  Single-page UI for the retrieval service, served by src/api.py at "/".
+
+  No build step, no framework, no CDN: everything it needs is in this file, so it works offline (the
+  only network traffic in the whole system is the model download on the server side). The syntax
+  highlighter below is a small Python-only tokenizer for the same reason - pulling in a highlighting
+  library would mean a CDN request and break the offline promise for a few colours.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Code Retrieval</title>
+<style>
+  /* Layout: a full-width blue statement card with the headline and four fact cards, a Google-style search
+     bar under it, then a ranked list. Palette: Samsung Blue #1428A0, ink, soft paper, a cyan and a lime
+     highlight. No external fonts, images or URLs: the page works offline. */
+  :root {
+    --ink: #101421; --muted: #6c7484; --line: #dfe4ec; --paper: #f6f8fb; --white: #ffffff; --chip: #f0f2f6;
+    --blue: #1428a0; --blue-text: #1428a0; --cyan: #b8ebff; --lime: #d8ee74; --lime-ink: #233000;
+    --code-bg: #f3f5f9; --shadow: 0 18px 50px rgba(21, 31, 73, .10); --shadow-sm: 0 12px 30px rgba(21, 31, 73, .08);
+    --ok: #1a7f4b; --warn: #b25e00; --str: #6a6b1f; --num: #a25300; --com: #8a93a6;
+    --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #eef0f6; --muted: #9aa2b6; --line: #262b38; --paper: #0b0c10; --white: #14161c; --chip: #1e212a;
+      --blue-text: #93a6ff; --code-bg: #0f1116; --shadow: 0 18px 50px rgba(0, 0, 0, .45);
+      --shadow-sm: 0 12px 30px rgba(0, 0, 0, .4); --ok: #52c98a; --warn: #f0a552;
+      --str: #c8cf7a; --num: #f0a552; --com: #7d8599;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.5; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .shell { max-width: 1760px; margin: 0 auto; padding: 20px clamp(14px, 2vw, 32px) 0; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; gap: 8px 16px; flex-wrap: wrap;
+            padding: 8px 2px 18px; }
+  .wordmark { font-weight: 800; letter-spacing: -.04em; font-size: 17px; }
+  .nav-note { font-size: 12px; color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+  /* hero: one wide card, headline inside */
+  .hero { border-radius: 28px; background: var(--blue); color: #fff; padding: clamp(28px, 4.5vw, 64px);
+          position: relative; overflow: hidden; box-shadow: var(--shadow); }
+  .hero::before { content: ""; position: absolute; inset: auto -8% -55% 40%; height: 100%;
+                  background: radial-gradient(ellipse at center, rgba(184, 235, 255, .42), transparent 67%);
+                  transform: rotate(-16deg); }
+  .hero::after { content: ""; position: absolute; width: 380px; height: 380px; right: -150px; top: -170px;
+                 border: 1px solid rgba(255, 255, 255, .20); border-radius: 50%;
+                 box-shadow: 0 0 0 34px rgba(255, 255, 255, .06), 0 0 0 68px rgba(255, 255, 255, .04); }
+  .hero > * { position: relative; z-index: 1; }
+  .eyebrow { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .13em; color: var(--cyan); }
+  h1 { font-size: clamp(40px, 6.4vw, 92px); line-height: .95; letter-spacing: -.075em; max-width: 860px;
+       margin: 22px 0 22px; font-weight: 800; text-wrap: balance; }
+  h1 em { font-style: normal; color: var(--lime); }
+  .lede { max-width: 640px; color: #dfe7ff; font-size: clamp(16px, 1.5vw, 19px); margin: 0; }
+  .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 40px; }
+  .fact { border: 1px solid rgba(255, 255, 255, .22); background: rgba(255, 255, 255, .08); border-radius: 18px;
+          padding: 18px 18px 16px; min-width: 0; }
+  .fact .k { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--cyan); font-weight: 800; }
+  .fact .big { font-size: clamp(26px, 2.6vw, 38px); font-weight: 800; letter-spacing: -.055em; line-height: 1.05;
+               margin: 10px 0 8px; color: var(--lime); }
+  .fact p { margin: 0; font-size: 13px; color: #dfe7ff; }
+  .hero-foot { margin-top: 20px; display: flex; gap: 6px 14px; flex-wrap: wrap; align-items: center; font-size: 12px;
+               color: #b5c2f8; }
+  .live { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+  .live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--lime); flex: none; }
+  #status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; } #status.err { color: #ffd9a8; }
+  /* search: one wide bar under the hero */
+  .ask { max-width: 900px; margin: clamp(64px, 9vw, 120px) auto 0; text-align: center; }
+  .ask h2 { font-size: clamp(26px, 3.2vw, 44px); letter-spacing: -.06em; line-height: 1.05; margin: 0 0 22px; }
+  .bar { display: flex; align-items: center; gap: 12px; background: var(--white); border: 1.5px solid var(--line);
+         border-radius: 34px; padding: 10px 10px 10px 24px; box-shadow: var(--shadow); text-align: left;
+         transition: border-color .2s, box-shadow .2s; }
+  .bar:focus-within { border-color: var(--blue-text); box-shadow: 0 0 0 4px rgba(20, 40, 160, .14), var(--shadow); }
+  .glass { width: 16px; height: 16px; border: 2.5px solid var(--muted); border-radius: 50%; position: relative; flex: none;
+           margin-right: 4px; }
+  .glass::after { content: ""; position: absolute; width: 2.5px; height: 8px; background: var(--muted); right: -4px; bottom: -7px;
+                  transform: rotate(-45deg); border-radius: 2px; }
+  .bar textarea { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; resize: none; overflow-y: auto;
+                  height: 28px; max-height: 240px; padding: 4px 0; font: 15.5px/1.5 var(--mono); }
+  .bar textarea::placeholder { color: var(--muted); font-family: var(--sans); }
+  #go { border: 0; background: var(--blue); color: #fff; height: 46px; padding: 0 26px; border-radius: 999px; cursor: pointer;
+        font-size: 15px; font-weight: 700; flex: none; }
+  #go:hover:not(:disabled) { background: #2d47cf; } #go:disabled { opacity: .55; cursor: default; }
+  .hint { font-size: 12px; color: var(--muted); margin: 12px 0 0; }
+  .try { display: flex; gap: 8px 10px; align-items: center; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  .try-label { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); font-weight: 700; }
+  .chips { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
+  .chip { background: var(--white); border: 1px solid var(--line); border-radius: 999px; padding: 8px 13px; font-size: 12px;
+          color: var(--ink); cursor: pointer; transition: background .15s, border-color .15s; }
+  .chip:hover { background: var(--cyan); border-color: var(--cyan); color: #101421; }
+  .opts { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: center; margin-top: 22px; }
+  .opts .sep { width: 1px; height: 18px; background: var(--line); }
+  label.chk { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: 12.5px; cursor: pointer; min-width: 0; }
+  label.off { opacity: .4; }
+  select, input[type=text] { background: var(--white); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px;
+                             font-size: 12.5px; }
+  select { max-width: 230px; text-overflow: ellipsis; }
+  :is(button, select, input, textarea, summary):focus-visible { outline: 3px solid var(--blue-text); outline-offset: 2px; }
+  .bar textarea:focus-visible { outline: 0; }
+  button.ghost, button.small, button.copy { background: var(--white); border: 1px solid var(--line); border-radius: 999px;
+                                             padding: 6px 12px; font-size: 12px; cursor: pointer; }
+  button.ghost:hover:not(:disabled), button.copy:hover { border-color: var(--blue-text); color: var(--blue-text); }
+  button:disabled { opacity: .55; cursor: default; }
+  details.adv { margin-top: 14px; }
+  details.adv[open] { background: var(--white); border: 1px solid var(--line); border-radius: 22px; padding: 14px 20px 18px;
+                      box-shadow: var(--shadow-sm); }
+  details.adv .try { margin-top: 16px; }
+  details.adv > summary, details.panel > summary { cursor: pointer; font-size: 12.5px; font-weight: 700; color: var(--blue-text); }
+  details.adv .opts { margin-top: 12px; }
+  .note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  details.panel { background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 14px 20px; margin-top: 28px;
+                  text-align: left; }
+  /* results */
+  .results { padding: 64px 0 40px; }
+  .results:not(:has(#results > *, #meta:not(:empty))) { display: none; }
+  .results-head { display: flex; justify-content: space-between; align-items: end; gap: 16px; border-bottom: 1px solid var(--line);
+                  padding: 0 2px 20px; margin-bottom: 18px; }
+  .results-title { font-size: clamp(25px, 3vw, 45px); letter-spacing: -.065em; line-height: 1; margin: 0; }
+  .results-title span { color: var(--blue-text); }
+  .results-meta { font-size: 12px; color: var(--muted); text-align: right; }
+  .meta { color: var(--muted); font-size: 12.5px; margin: 0 2px 16px; }
+  .timing { font: 12px var(--mono); }
+  .perf { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; font-size: 11.5px; }
+  .perf span { background: var(--chip); border-radius: 999px; padding: 5px 10px; color: var(--muted); }
+  .perf b { color: var(--ink); font-weight: 700; } .perf .warn { color: var(--warn); }
+  .route { font-size: 13px; color: var(--muted); margin-bottom: 8px; } .route b { color: var(--ink); }
+  .hit { background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 20px 24px; margin-bottom: 13px;
+         transition: transform .18s, box-shadow .18s; }
+  .hit:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+  .hit h3 { margin: 0 0 14px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 6px 14px; align-items: start; }
+  .rank { font-size: 12px; color: var(--blue-text); font-weight: 800; padding-top: 4px; font-variant-numeric: tabular-nums; }
+  .loc { font: 700 14px/1.4 var(--mono); overflow-wrap: anywhere; letter-spacing: -.01em; }
+  .titlemain { min-width: 0; }
+  .badges { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .badge { font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 6px 9px; background: var(--chip); color: var(--muted); }
+  .badge.score { background: var(--lime); color: var(--lime-ink); font-weight: 800; }
+  pre { margin: 0; padding: 14px 16px; overflow-x: auto; font: 12.5px/1.5 var(--mono); background: var(--code-bg); border-radius: 12px; }
+  .kw { font-weight: 700; color: var(--blue-text); } .str { color: var(--str); } .com { color: var(--com); font-style: italic; }
+  .num { color: var(--num); } .fn { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+  .extra { padding: 12px 2px 0; font-size: 12.5px; } .extra div { margin-top: 4px; }
+  .extra details summary { cursor: pointer; font-weight: 700; } .dimtext { color: var(--muted); }
+  .err { color: var(--warn); background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 16px 20px; }
+  .err b { display: block; margin-bottom: 2px; }
+  .empty, .loading { color: var(--muted); background: var(--white); border: 1px dashed var(--line); border-radius: 18px;
+                     padding: 46px 20px; text-align: center; }
+  .trace { background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 16px 22px; margin: 0 0 13px; font-size: 13px; }
+  .trace ol { margin: 6px 0 0; padding-left: 20px; } .trace li { margin-bottom: 6px; }
+  .cmp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; }
+  .cmp-col { min-width: 0; } .cmp-col h4 { margin: 0 0 8px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .cmp-item { background: var(--white); border: 1px solid var(--line); border-radius: 14px; margin-bottom: 10px; overflow: hidden; }
+  .cmp-item .top { padding: 10px 14px; font-size: 12.5px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .cmp-item pre { border-radius: 0; } .cmp-item .badge { font-size: 11px; }
+  .b-appeared { background: var(--lime); color: var(--lime-ink); } .b-disappeared { color: var(--warn); }
+  .b-moved { background: var(--cyan); color: #101421; } .b-same, .b-kept { color: var(--muted); }
+  .diffbox { margin-top: 12px; } .diffbox .add { color: var(--ok); } .diffbox .del { color: var(--warn); } .diffbox .hunk { color: var(--blue-text); }
+  .verrow { border: 1px solid var(--line); border-radius: 12px; margin-top: 8px; cursor: pointer; overflow: hidden; }
+  .verrow .top { padding: 6px 12px; font-size: 12px; display: block; } .verrow pre { font-size: 12px; border-radius: 0; }
+  .verrow.cur { border-color: var(--blue-text); } .histbox { margin-top: 8px; }
+  .hit[data-doc] { cursor: pointer; } .hit[data-doc]:hover .loc { color: var(--blue-text); }
+  .modal { position: fixed; inset: 0; background: rgba(8, 12, 32, .55); z-index: 10; overflow: auto; padding: 4vh 16px; }
+  .modal-box { max-width: 920px; margin: 0 auto; background: var(--white); border-radius: 24px; overflow: hidden; box-shadow: var(--shadow); }
+  .modal-head { display: flex; gap: 8px 12px; align-items: baseline; flex-wrap: wrap; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+  .modal-head .spacer { flex: 1; } .modal-head .tag { color: var(--muted); font-size: 12px; }
+  .codewrap { display: flex; overflow: hidden; } .codewrap.collapsed { max-height: 26em; }
+  .codewrap pre { border-radius: 0; background: var(--white); }
+  .codewrap pre.gutter { color: var(--com); text-align: right; user-select: none; flex: none; border-right: 1px solid var(--line); }
+  .codewrap pre.code { flex: 1; min-width: 0; }
+  .footer { margin-top: 56px; display: flex; justify-content: space-between; gap: 8px 24px; flex-wrap: wrap; border-top: 1px solid var(--line);
+            padding: 20px 2px 28px; color: var(--muted); font-size: 12px; }
+  .footer strong { color: var(--ink); }
+  @media (max-width: 1000px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 720px) {
+    .shell { padding: 12px 12px 0; }
+    .hero { border-radius: 22px; padding: 28px 22px; }
+    .cards { grid-template-columns: 1fr; margin-top: 30px; }
+    .ask { margin-top: 32px; }
+    .bar { padding: 8px 8px 8px 18px; border-radius: 28px; }
+    #go { padding: 0 18px; height: 42px; }
+    .cmp-grid { grid-template-columns: 1fr; }
+    .results { padding: 44px 0 28px; }
+    .results-head { display: block; } .results-meta { text-align: left; margin-top: 10px; }
+    .hit { padding: 16px; }
+    .hit h3 { grid-template-columns: 26px minmax(0, 1fr); } .badges { grid-column: 2; justify-content: flex-start; }
+    .opts .sep { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } .hit:hover { transform: none; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="topbar">
+    <div class="wordmark">PRISM / 26</div>
+    <div class="nav-note">Samsung PRISM GenAI Hackathon &middot; Theme 01 &middot; SRI-B</div>
+  </header>
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="eyebrow">Code retrieval on CoIR-APPS</div>
+    <h1 id="hero-title">Find the line<br>behind the <em>idea.</em></h1>
+    <p class="lede">Describe a problem in plain words or paste a snippet. Prism returns the function you meant, ranked by meaning rather than matching words, and keeps every version of it in reach.</p>
+    <div class="cards">
+      <div class="fact"><div class="k">Accuracy</div><div class="big">0.9376</div>
+        <p>NDCG@10 on the official test split (MRR@10 0.9238). F2LLM-v2-1.7B alone: no reranker, no fusion.</p></div>
+      <div class="fact"><div class="k">Speed on a CPU</div><div class="big">~1 s</div>
+        <p>for a short query on two cores once the model is warm. The vector search itself takes 4&ndash;6 ms.</p></div>
+      <div class="fact"><div class="k">History</div><div class="big">All versions</div>
+        <p>Search every version of a function, compare two versions side by side and read the diff.</p></div>
+      <div class="fact"><div class="k">Transparent</div><div class="big">Score &amp; why</div>
+        <p>Each result shows its similarity score, the gap to the next result and the query words found in the code.</p></div>
+    </div>
+    <div class="hero-foot"><span class="live"><span id="status">loading index info&hellip;</span></span></div>
+  </section>
+
+  <section class="ask" aria-label="Search">
+    <h2>What do you want to find?</h2>
+    <form id="form" autocomplete="off">
+      <div class="bar">
+        <span class="glass" aria-hidden="true"></span>
+        <textarea id="q" rows="1" required aria-label="What do you want to find?"
+          title="Enter adds a line, Ctrl/Cmd+Enter searches"
+          placeholder="e.g. count the pairs whose sum is divisible by k"></textarea>
+        <button type="submit" id="go" title="Search (Ctrl/Cmd+Enter)">Search</button>
+      </div>
+      <details class="adv">
+        <summary>Options and examples</summary>
+        <div class="try"><span class="try-label">Try</span><div class="chips" id="examples"></div></div>
+        <div class="opts">
+          <label class="chk">Index <select id="index"></select></label>
+          <label class="chk">Results
+            <select id="k"><option>3</option><option selected>5</option><option>10</option><option>20</option></select>
+          </label>
+          <span class="sep" aria-hidden="true"></span>
+          <button type="button" class="ghost" id="histBtn">Version history&hellip;</button>
+          <button type="button" class="ghost" id="reindexBtn" style="display:none"
+                  title="Re-scan this index's source folder and re-encode only the chunks that changed">Update index</button>
+        </div>
+        <div class="opts">
+          <label class="chk"><input type="checkbox" id="allv"> all versions</label>
+          <label class="chk">version
+            <input type="text" id="ver" size="3" placeholder="any" style="width:62px">
+          </label>
+          <label class="chk">category <select id="cat"><option value="">any</option></select></label>
+          <label class="chk"><input type="checkbox" id="agent"> agent</label>
+          <label class="chk"><input type="checkbox" id="sugg"> extras</label>
+        </div>
+        <p class="hint">Enter adds a line, Ctrl/Cmd+Enter searches. <span id="qInfo"></span></p>
+      </details>
+      <div class="note" id="modeNote"></div>
+      <div class="note" id="agentNote"></div>
+    </form>
+  <details class="panel" id="cmpPanel" style="display:none">
+    <summary>Compare versions</summary>
+    <div class="row controls">
+      <label class="chk">version A <select id="cmpA"></select></label>
+      <label class="chk">version B <select id="cmpB"></select></label>
+      <button type="button" class="ghost" id="cmpGo">Compare</button>
+    </div>
+    <div class="note">Runs the query above against both versions. &ldquo;appeared&rdquo; means in
+      B&rsquo;s top-k but not A&rsquo;s top-k (it may exist in A and just rank lower).</div>
+    <div id="cmpOut"></div>
+  </details>
+
+  </section>
+
+  <div class="modal" id="viewer" style="display:none" role="dialog" aria-modal="true">
+    <div class="modal-box">
+      <div class="modal-head">
+        <span class="loc" id="vwTitle"></span><span class="tag" id="vwTag"></span>
+        <span class="spacer"></span>
+        <button type="button" class="ghost small" id="vwToggle" style="display:none">Collapse</button>
+        <button type="button" class="ghost small" id="vwCopy">Copy</button>
+        <button type="button" class="ghost small" id="vwClose">Close</button>
+      </div>
+      <div id="vwBody"></div>
+    </div>
+  </div>
+
+
+  <section class="results" aria-live="polite">
+    <div class="results-head">
+      <h2 class="results-title">Ranked <span>evidence</span></h2>
+      <div class="results-meta"><span id="resultCount"></span><br>ordered by embedding similarity</div>
+    </div>
+    <div class="meta" id="meta"></div>
+    <div id="results"></div>
+  </section>
+
+  <footer class="footer"><strong>Samsung PRISM GenAI Hackathon &middot; Theme 01</strong><span>Scored on MTEB AppsRetrieval (CoIR-APPS) &middot; SRI-B</span></footer>
+</main>
+
+<script>
+"use strict";
+// ---- a minimal Python highlighter (offline, no dependencies) -------------------------------------
+var KW_SET = {};
+["def","class","return","if","elif","else","for","while","in","not","and","or","is","None","True",
+ "False","import","from","as","with","try","except","finally","raise","yield","lambda","pass",
+ "break","continue","global","nonlocal","assert","del","async","await","self"
+].forEach(function (k) { KW_SET[k] = true; });
+
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function escapeAttr(s) {
+  return escapeHtml(String(s)).replace(/"/g, "&quot;");
+}
+
+// Tokenize first so that keywords inside strings or comments are not re-coloured.
+function highlightPython(src) {
+  var out = "", i = 0, text = String(src);
+  var re = /("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|#[^\n]*)/g;
+  var m;
+  while ((m = re.exec(text)) !== null) {
+    out += plain(text.slice(i, m.index));
+    var cls = m[0][0] === "#" ? "com" : "str";
+    out += '<span class="' + cls + '">' + escapeHtml(m[0]) + "</span>";
+    i = m.index + m[0].length;
+  }
+  out += plain(text.slice(i));
+  return out;
+}
+
+// One pass over numbers and identifiers, so markup already written is never re-scanned.
+function plain(chunk) {
+  var text = String(chunk), re = /(\b\d+\.?\d*\b)|([A-Za-z_][A-Za-z0-9_]*)(\s*\()?/g;
+  var out = "", last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    out += escapeHtml(text.slice(last, m.index));
+    if (m[1] !== undefined) { out += '<span class="num">' + m[1] + "</span>"; }
+    else if (KW_SET[m[2]]) { out += '<span class="kw">' + m[2] + "</span>" + escapeHtml(m[3] || ""); }
+    else if (m[3]) { out += '<span class="fn">' + m[2] + "</span>" + escapeHtml(m[3]); }
+    else { out += escapeHtml(m[2]); }
+    last = re.lastIndex;
+  }
+  return out + escapeHtml(text.slice(last));
+}
+
+// ---- example queries: APPS-style problem statements (kept multi-line) and one code-style query -------
+var EXAMPLES = [
+  { label: "Problem: pairs divisible by k", text:
+    "You are given an array of n integers and an integer k. Count the pairs of indices (i, j) with\n" +
+    "i < j such that a_i + a_j is divisible by k.\n\n" +
+    "Input\nThe first line contains n and k. The second line contains n integers a_1 ... a_n.\n\n" +
+    "Output\nPrint one integer, the number of such pairs.\n\n" +
+    "Example\nInput\n5 3\n1 2 3 4 5\nOutput\n4" },
+  { label: "Problem: minimum deletions to a palindrome", text:
+    "Polycarp has a string s of lowercase Latin letters. In one move he may delete any single character\n" +
+    "of s. Find the minimum number of moves needed to turn s into a palindrome.\n\n" +
+    "Input\nOne line with the string s (1 <= |s| <= 2000).\n\n" +
+    "Output\nPrint the minimum number of deletions.\n\n" +
+    "Example\nInput\nabca\nOutput\n1" },
+  { label: "Problem: grid paths modulo 1e9+7", text:
+    "A grid has n rows and m columns; each cell is either '.' (free) or '#' (blocked). Starting in the\n" +
+    "top-left cell you may only move right or down, and only onto free cells. Count the ways to reach\n" +
+    "the bottom-right cell, modulo 1000000007.\n\n" +
+    "Input\nn and m, then n lines of m characters.\n\n" +
+    "Output\nThe number of paths modulo 1000000007.\n\n" +
+    "Example\nInput\n3 3\n...\n.#.\n...\nOutput\n2" },
+  { label: "Problem: merge overlapping intervals", text:
+    "You are given n closed intervals [l_i, r_i]. Merge all intervals that overlap and print the\n" +
+    "resulting disjoint intervals in increasing order.\n\n" +
+    "Input\nThe first line contains n. Each of the next n lines contains l_i and r_i.\n\n" +
+    "Output\nPrint the merged intervals, one per line.\n\n" +
+    "Example\nInput\n4\n1 3\n2 6\n8 10\n15 18\nOutput\n1 6\n8 10\n15 18" },
+  { label: "Code: binary search over a sorted list", text:
+    "def search(arr, target):\n    lo, hi = 0, len(arr) - 1\n    while lo <= hi:\n" +
+    "        mid = (lo + hi) // 2\n        if arr[mid] == target:\n            return mid\n" +
+    "        ..." }
+];
+EXAMPLES.forEach(function (ex, i) {
+  var c = document.createElement("button");
+  c.type = "button"; c.className = "chip"; c.setAttribute("data-i", String(i));
+  c.textContent = ex.label.replace(/^(Problem|Code): /, "");
+  c.title = ex.label;
+  document.getElementById("examples").appendChild(c);
+});
+
+// ---- state ---------------------------------------------------------------------------------------
+var el = function (id) { return document.getElementById(id); };
+var indexInfo = {};
+var indexList = {};        // name -> entry from /indexes (carries the `reindexable` flag)
+
+function setStatus(text, cls) {
+  el("status").textContent = text;
+  el("status").className = "sub" + (cls ? " " + cls : "");
+}
+
+
+// Suggestions come back as a flat list; hang each one on the result it belongs to so the
+// HIT_SECTIONS renderer can show it in place.
+function attachSuggestions(data) {
+  if (!data.suggestions || !data.suggestions.length) { return; }
+  data.hits.forEach(function (h) {
+    h.suggestions = data.suggestions.filter(function (s) {
+      return h.file && s.file === h.file
+        && s.line >= (h.start_line || 0) && s.line <= (h.end_line || 1e9);
+    });
+  });
+}
+
+async function loadCategories() {
+  var sel = el("cat");
+  sel.innerHTML = '<option value="">any</option>';
+  sel.parentNode.style.display = "none";
+  if (!indexInfo || !indexInfo.categorized) { return; }     // only a loaded, tagged index has a filter
+  try {
+    var r = await fetch("/categories?index=" + encodeURIComponent(el("index").value));
+    var data = await r.json();
+    Object.keys(data.families || {}).forEach(function (fam) {
+      var o = document.createElement("option");
+      o.value = fam; o.textContent = fam + " (" + data.families[fam] + ")";
+      sel.appendChild(o);
+    });
+    sel.parentNode.style.display = Object.keys(data.families || {}).length ? "" : "none";
+  } catch (e) { /* an index without tags simply has no filter */ }
+}
+
+// ---- states: loading / empty / unavailable / error ------------------------------------------------
+function problemBox(status, detail) {
+  var title = { 400: "Request refused", 404: "Not found", 409: "Busy", 422: "Invalid request",
+                503: "Service unavailable" }[status] || "Error";
+  var hint = "";
+  if (status === 404) { hint = "The index (or the item) does not exist on this server. Check the index selector, or build the index first."; }
+  if (status === 503) { hint = "The index or its model failed to load. The status line above says why."; }
+  return '<div class="err"><b>' + escapeHtml(title + (status ? " (" + status + ")" : "")) + "</b>"
+    + escapeHtml(String(detail || "")) + (hint ? '<div class="note">' + escapeHtml(hint) + "</div>" : "") + "</div>";
+}
+function emptyBox(text) { return '<div class="empty">' + escapeHtml(text) + "</div>"; }
+function loadingBox(text) { return '<div class="loading">' + escapeHtml(text) + "</div>"; }
+
+// Agent mode ignores the version, all-versions, category and extras controls (it plans its own
+// searches), so they are disabled rather than left looking as if they applied.
+function syncAgentMode() {
+  var on = el("agent").checked;
+  ["allv", "ver", "cat", "sugg"].forEach(function (id) {
+    el(id).disabled = on;
+    if (el(id).parentNode) { el(id).parentNode.classList.toggle("off", on); }
+  });
+  el("agentNote").textContent = on
+    ? "Agent mode plans its own searches: the version, all-versions, category and extras controls are ignored."
+    : "";
+}
+el("agent").addEventListener("change", syncAgentMode);
+
+function renderAgent(out) {
+  var html = '<div class="trace"><b>agent</b> · ' + escapeHtml(out.route.kind) + " → "
+    + escapeHtml(out.route.route) + ' <span class="dimtext">' + escapeHtml(out.route.reason)
+    + "</span><ol>";
+  out.trace.forEach(function (st) {
+    html += "<li><b>" + escapeHtml(st.tool) + "</b>(" + escapeHtml(String(st.argument)) + ") → "
+      + st.n_results + " result(s), " + Math.round(st.seconds * 1000) + " ms"
+      + '<br><span class="dimtext">' + escapeHtml(st.reason)
+      + (st.note ? " — " + escapeHtml(st.note) : "") + "</span></li>";
+  });
+  html += "</ol><div class=\"dimtext\">stopped: " + escapeHtml(out.stop_reason) + " · "
+    + out.steps_run + "/" + out.max_steps + " steps · " + out.seconds + "s</div></div>";
+  if (!out.answers.length) { html += emptyBox("The agent found nothing to report for this question."); }
+  html += out.answers.map(function (a) {
+    return '<div class="hit"><h3><span class="loc">' + escapeHtml(a.location || "")
+      + '</span><span class="tag">' + escapeHtml(a.kind) + "</span></h3>"
+      + (a.preview ? "<pre>" + highlightPython(a.preview) + "</pre>" : "") + "</div>";
+  }).join("");
+  el("results").innerHTML = html;
+  el("meta").innerHTML = '<span class="timing">agent: ' + out.steps_run + " steps, "
+    + out.answers.length + " locations, " + out.seconds + "s</span>";
+}
+
+async function loadIndexes() {
+  try {
+    var r = await fetch("/indexes");
+    var data = await r.json();
+    var sel = el("index");
+    sel.innerHTML = "";
+    indexList = {};
+    data.indexes.forEach(function (ix) {
+      indexList[ix.name] = ix;
+      var o = document.createElement("option");
+      o.value = ix.name;
+      o.textContent = ix.name + (ix.loaded ? " (loaded)" : "");
+      if (ix.name === data.default) { o.selected = true; }
+      sel.appendChild(o);
+    });
+    if (!data.indexes.length) {
+      var o2 = document.createElement("option");
+      o2.value = data.default; o2.textContent = data.default;
+      sel.appendChild(o2);
+    }
+  } catch (e) {
+    setStatus("could not list indexes: " + e, "err");
+  }
+  refreshHealth();
+  syncReindexButton();
+  syncComparePanel();
+}
+
+// "Update index" only makes sense for an index that has a source to re-scan (a custom folder or a git
+// history). The official APPS indexes are never offered it, and the server refuses them anyway.
+function syncReindexButton() {
+  var ix = indexList[el("index").value];
+  el("reindexBtn").style.display = (ix && ix.reindexable) ? "" : "none";
+}
+el("index").addEventListener("change", function () {
+  el("results").innerHTML = ""; el("meta").textContent = "";
+  indexInfo = {};
+  syncReindexButton(); syncComparePanel(); refreshHealth();
+});
+
+// ---- version comparison ---------------------------------------------------------------------------
+async function syncComparePanel() {
+  var ix = indexList[el("index").value];
+  var panel = el("cmpPanel");
+  panel.style.display = (ix && ix.versioned) ? "" : "none";
+  if (!(ix && ix.versioned)) { return; }
+  try {
+    var r = await fetch("/versions?index=" + encodeURIComponent(el("index").value));
+    var data = await r.json();
+    ["cmpA", "cmpB"].forEach(function (id, n) {
+      var sel = el(id);
+      sel.innerHTML = "";
+      (data.versions || []).forEach(function (v) {
+        var o = document.createElement("option");
+        o.value = v; o.textContent = "v" + v;
+        sel.appendChild(o);
+      });
+      // default: the two ends of the history
+      if (data.versions && data.versions.length) {
+        sel.value = n === 0 ? data.versions[0] : data.versions[data.versions.length - 1];
+      }
+    });
+  } catch (e) { /* the panel stays empty; the error shows when Compare is pressed */ }
+}
+
+function cmpItem(h, side) {
+  var title = h.location || h.snippet_id || h.doc_id;
+  var note = "";
+  if (side === "b" && h.status === "moved") {
+    note = (h.rank_change > 0 ? "\u2191" : "\u2193") + Math.abs(h.rank_change) + " (was #" + h.rank_in_a + ")";
+  } else if (side === "b" && h.status === "same") { note = "same rank"; }
+  var btn = (side === "b" && h.content_changed && h.snippet_id)
+    ? ' <button type="button" class="ghost small" data-diff="' + escapeHtml(h.snippet_id) + '">diff</button>' : "";
+  return '<div class="cmp-item"><div class="top"><b>#' + h.rank + "</b>"
+    + '<span class="loc">' + escapeHtml(title) + "</span>"
+    + '<span class="badge b-' + h.status + '">' + escapeHtml(h.status) + "</span>"
+    + '<span class="dimtext">' + escapeHtml(note) + (h.content_changed ? " \u00b7 text changed" : "")
+    + "</span>" + btn + "</div><pre>" + highlightPython(h.preview) + "</pre></div>";
+}
+
+function renderDiff(d) {
+  if (d.identical) { return '<div class="note">Identical text in v' + d.version_a + " and v" + d.version_b + ".</div>"; }
+  return '<pre>' + d.diff.split("\n").map(function (line) {
+    var cls = line.charAt(0) === "+" ? "add" : line.charAt(0) === "-" ? "del" : line.charAt(0) === "@" ? "hunk" : "";
+    return '<span class="' + cls + '">' + escapeHtml(line) + "</span>";
+  }).join("\n") + "</pre>";
+}
+
+el("cmpGo").addEventListener("click", async function () {
+  var q = el("q").value.trim();
+  var out = el("cmpOut");
+  if (!q) { out.innerHTML = '<div class="err">Type a query first.</div>'; return; }
+  var a = el("cmpA").value, b = el("cmpB").value;
+  out.innerHTML = '<div class="note">comparing\u2026</div>';
+  try {
+    var url = "/compare?q=" + encodeURIComponent(q) + "&a=" + a + "&b=" + b
+      + "&k=" + el("k").value + "&index=" + encodeURIComponent(el("index").value);
+    var r = await fetch(url);
+    var d = await r.json();
+    if (!r.ok) { out.innerHTML = '<div class="err">' + escapeHtml(d.detail || r.statusText) + "</div>"; return; }
+    var s = d.summary;
+    out.innerHTML = '<div class="note">v' + d.version_a + " vs v" + d.version_b + ": " + s.appeared
+      + " appeared, " + s.disappeared + " disappeared, " + s.moved + " moved, " + s.same
+      + " unchanged rank, " + s.content_changed + " with changed text</div>"
+      + '<div class="cmp-grid"><div class="cmp-col"><h4>version ' + d.version_a + "</h4>"
+      + d.a.map(function (h) { return cmpItem(h, "a"); }).join("") + '</div><div class="cmp-col"><h4>version '
+      + d.version_b + "</h4>" + d.b.map(function (h) { return cmpItem(h, "b"); }).join("")
+      + '</div></div><div class="diffbox" id="diffBox"></div>';
+    out.querySelectorAll("button[data-diff]").forEach(function (btn) {
+      btn.addEventListener("click", async function () {
+        var id = btn.getAttribute("data-diff");
+        var rr = await fetch("/diff?snippet_id=" + encodeURIComponent(id) + "&a=" + a + "&b=" + b
+          + "&index=" + encodeURIComponent(el("index").value));
+        var dd = await rr.json();
+        el("diffBox").innerHTML = "<h4>" + escapeHtml(id) + ": v" + a + " &rarr; v" + b + "</h4>"
+          + (rr.ok ? renderDiff(dd) : '<div class="err">' + escapeHtml(dd.detail || rr.statusText) + "</div>");
+      });
+    });
+  } catch (e) {
+    out.innerHTML = '<div class="err">' + escapeHtml(String(e)) + "</div>";
+  }
+});
+
+// The status line describes the SELECTED index. /health?index=NAME reports on it without loading it,
+// so picking an index that has not been searched yet says so instead of showing another index's model.
+async function refreshHealth() {
+  var name = el("index").value;
+  try {
+    var r = await fetch("/health?index=" + encodeURIComponent(name));
+    var h = await r.json();
+    if (!r.ok) { setStatus(name + ": " + (h.detail || r.statusText), "err"); return; }
+    if (h.loaded && h.index) {
+      indexInfo = h.index;
+      var bits = [name, h.index.model, h.index.n_docs + " docs", "dim " + h.index.dim,
+                  h.index.device + (h.index.threads ? " / " + h.index.threads + " threads" : "")];
+      if (h.index.max_query_tokens) { bits.push("query cap " + h.index.max_query_tokens); }
+      setStatus(bits.join("  \u00b7  "));
+      el("modeNote").textContent = h.index.versioned
+        ? (h.index.chunked
+            ? "Git-history index: every version of every function. Results show file:start-end and the commit; lineages collapse to their best version unless 'all versions' is ticked."
+            : "Versioned index: results collapse to the best version per snippet unless 'all versions' is ticked.")
+        : (h.index.chunked ? "Code index: results show file:start-end." : "");
+    } else if (h.error) {
+      indexInfo = {};
+      setStatus("service degraded: " + h.error, "err");
+    } else if (h.available === false) {
+      indexInfo = {};
+      setStatus("index " + name + " is not available: " + h.reason, "err");
+      el("modeNote").textContent = "Build it first (see the README), or pick another index.";
+    } else if (h.facts) {
+      indexInfo = {};
+      setStatus(name + "  \u00b7  " + (h.facts.model || "model unknown") + "  \u00b7  " + h.facts.n_docs
+                + " docs  \u00b7  not loaded yet: it loads on your first search");
+      el("modeNote").textContent = "";
+    } else {
+      setStatus("model still loading\u2026");
+    }
+  } catch (e) {
+    setStatus("cannot reach the service: " + e, "err");
+  }
+  loadCategories();
+}
+
+// ---- hit rendering, as composable pieces --------------------------------------------------------
+// TAG_PARTS, HIT_SECTIONS, META_PARTS and BANNERS are extension points. A feature that wants to show
+// something new on a result appends one small function to a list instead of editing the renderer, so
+// two features can add fields without touching the same lines.
+//
+// tag part     -> a short string for the result header ("" for nothing)
+// hit section  -> HTML appended under that result's code block
+// meta part    -> an extra item on the timing line
+// banner       -> HTML shown above the results
+var TAG_PARTS = [
+  function (h) { return h.qualname ? (h.kind ? h.kind + " " + h.qualname : h.qualname) : ""; },
+  function (h) { return h.version !== undefined ? "v" + h.version : ""; },
+  function (h) { return h.commit_short ? "commit " + h.commit_short : ""; },
+  function (h) { return h.change || ""; },
+  function (h) { return (h.snippet_id && !h.qualname) ? h.snippet_id : ""; }
+];
+var HIT_SECTIONS = [];
+var META_PARTS = [];
+var BANNERS = [];
+
+// --- additions registered through the extension points above --------------------------------------
+TAG_PARTS.push(function (h) { return h.ast_family ? "family: " + h.ast_family : ""; });
+TAG_PARTS.push(function (h) { return h.cluster_label ? "~ " + h.cluster_label : ""; });
+
+HIT_SECTIONS.push(function (h) {
+  if (!h.suggestions || !h.suggestions.length) { return ""; }
+  return '<div class="extra"><b>extras</b> (rule-based, not part of retrieval)'
+    + h.suggestions.map(function (s) {
+        return '<div>' + escapeHtml(s.location) + " · " + escapeHtml(s.check)
+             + "<br><span class=\"dimtext\">" + escapeHtml(s.detail) + "</span></div>";
+      }).join("") + "</div>";
+});
+
+// "Why this result": the visible signals only. Labelled "matched terms", not a causal explanation.
+HIT_SECTIONS.push(function (h) {
+  var w = h.why;
+  if (!w) { return ""; }
+  var terms = (w.matched_terms || []).map(function (m) {
+    return "<code>" + escapeHtml(m.term) + "</code> &rarr; " + m.identifiers.map(escapeHtml).join(", ");
+  });
+  var html = '<div class="extra"><details><summary>Why this result</summary>'
+    + "<div>Ranked by: " + escapeHtml(w.ranked_by) + " (similarity score " + h.score.toFixed(4) + ")</div>";
+  if (w.route) {
+    html += "<div>Query classified as: " + escapeHtml(w.route.kind) + " &rarr; " + escapeHtml(w.route.route)
+      + ' <span class="dimtext">' + escapeHtml(w.route.reason || "") + "</span></div>";
+  }
+  html += "<div>Score gap to the " + escapeHtml(w.gap_basis || "next result") + ": "
+    + (w.score_gap_to_next === null || w.score_gap_to_next === undefined
+        ? "none (this is the last one)" : w.score_gap_to_next.toFixed(4)) + "</div>";
+  html += "<div>Matched terms (" + (w.matched_terms || []).length + " of " + w.n_query_terms
+    + " query words also appear among this snippet's identifiers): "
+    + (terms.length ? terms.join("; ") : "none") + "</div>"
+    + '<div class="note">These are lexical signals read off the result. They do not explain why the embedding model scored it as it did.</div>'
+    + "</details></div>";
+  return html;
+});
+
+// Versioned results: other versions of the same lineage that made the list, and a history button.
+HIT_SECTIONS.push(function (h) {
+  if (!h.snippet_id) { return ""; }
+  var html = '<div class="extra">';
+  var others = h._others || [];
+  if (others.length) {
+    html += "<details><summary>" + others.length + " other version" + (others.length === 1 ? "" : "s")
+      + " of this lineage in these results: "
+      + others.map(function (o) { return "v" + o.version; }).join(", ") + "</summary>"
+      + others.map(function (o) { return versionRow(o, "similarity score " + o.score.toFixed(4), false); }).join("")
+      + "</details>";
+  }
+  return html + '<button type="button" class="ghost small" data-history="' + escapeAttr(h.snippet_id)
+    + '" data-cur="' + escapeAttr(h.doc_id) + '">View history</button><div class="histbox"></div></div>';
+});
+
+BANNERS.push(function (data) {
+  if (!data.route) { return ""; }
+  return '<div class="route"><b>route:</b> ' + escapeHtml(data.route.kind) + " → "
+    + escapeHtml(data.route.route) + ' <span class="dimtext">'
+    + escapeHtml(data.route.reason) + "</span></div>";
+});
+
+META_PARTS.push(function (data) {
+  return data.category_filter ? "category " + data.category_filter : "";
+});
+
+function versionRow(v, extra, current) {
+  var bits = ["v" + v.version];
+  if (v.commit_short) { bits.push("commit " + v.commit_short); }
+  if (v.change || v.mutation) { bits.push(v.change || v.mutation); }
+  if (extra) { bits.push(extra); }
+  return '<div class="verrow' + (current ? " cur" : "") + '" data-open="' + escapeAttr(v.doc_id) + '">'
+    + '<div class="top"><b>' + escapeHtml(bits.join(" · ")) + "</b>"
+    + (current ? ' <span class="dimtext">(the version shown above)</span>' : "")
+    + (v.commit_subject ? '<br><span class="dimtext">' + escapeHtml(v.commit_subject) + "</span>" : "")
+    + "</div><pre>" + highlightPython(v.preview || "") + "</pre></div>";
+}
+
+function composeParts(fns, arg) {
+  var out = [];
+  fns.forEach(function (fn) {
+    var part = "";
+    try { part = fn(arg) || ""; } catch (e) { part = ""; }  // one broken part must not blank the page
+    if (part) { out.push(part); }
+  });
+  return out;
+}
+
+function hitTitle(h) {
+  var loc = h.location || h.doc_id;
+  var tags = composeParts(TAG_PARTS, h).map(function (t) { return '<span class="badge">' + escapeHtml(t) + "</span>"; });
+  return '<h3><span class="rank">' + ("0" + h.rank).slice(-2) + '</span><span class="titlemain"><span class="loc">'
+    + escapeHtml(loc) + '</span></span><span class="badges"><span class="badge score" title="Cosine similarity between the query and this snippet\'s embeddings. Only meaningful for ordering results: it is not a percentage, a probability or a confidence.">'
+    + "similarity score " + h.score.toFixed(4) + "</span>" + tags.join("")
+    + '<button type="button" class="copy" data-copy="' + escapeAttr(h.doc_id) + '">copy</button></span></h3>';
+}
+
+// Compact performance panel: what this query cost and what it ran on. Every figure comes from the
+// response; nothing is estimated here.
+function perfPanel(data) {
+  var p = data.performance, t = data.timings_ms || {};
+  if (!p) { return ""; }
+  var chips = [];
+  function chip(label, value, cls) {
+    chips.push('<span' + (cls ? ' class="' + cls + '"' : "") + ">" + escapeHtml(label) + " <b>"
+               + escapeHtml(String(value)) + "</b></span>");
+  }
+  chip("query encode", (t.encode_query_ms || 0).toFixed(1) + " ms");
+  chip("search", (t.search_ms || 0).toFixed(2) + " ms");
+  if (data.total_ms !== undefined) { chip("total", data.total_ms.toFixed(0) + " ms"); }
+  if (t.cached !== undefined) { chip("query embedding", t.cached ? "cached" : "computed"); }
+  chip("device", p.device + (p.threads ? " / " + p.threads + " threads" : ""));
+  chip("model", p.model || "unknown");
+  chip("query cap", p.query_cap ? p.query_cap + " tokens" : "none");
+  if (p.query_tokens !== null && p.query_tokens !== undefined) { chip("query length", p.query_tokens + " tokens"); }
+  chip("truncated", p.truncated ? "yes - the tail was not encoded" : "no", p.truncated ? "warn" : "");
+  chip("index", p.index_docs + " docs, dim " + p.index_dim + ", " + p.index_size_mb + " MB");
+  return '<div class="perf">' + chips.join("") + "</div>";
+}
+
+function render(data) {
+  var out = "";
+  // A versioned index also sends `groups`: one entry per lineage, headed by its best-ranked version.
+  var items = data.groups ? data.groups.map(function (g) {
+    return Object.assign({}, g.best, { rank: g.rank, _others: g.others });
+  }) : data.hits;
+  items.forEach(function (h) {
+    out += '<div class="hit" data-doc="' + escapeAttr(h.doc_id) + '" title="Click to open the full code">' + hitTitle(h)
+        + "<pre>" + highlightPython(h.preview + (h.truncated ? "\n..." : "")) + "</pre>"
+        + composeParts(HIT_SECTIONS, h).join("") + "</div>";
+  });
+  el("results").innerHTML = out || emptyBox("No results. Try rephrasing the query, clearing the version or category filter, or raising top-k.");
+  el("resultCount").textContent = items.length + (items.length === 1 ? " match" : " matches");
+  var t = data.timings_ms || {};
+  var line = ["query encode " + (t.encode_query_ms || 0).toFixed(1) + " ms",
+              "search " + (t.search_ms || 0).toFixed(2) + " ms"];
+  if (data.total_ms) { line.push("total " + data.total_ms.toFixed(0) + " ms"); }
+  if (data.collapsed_lineages) { line.push("lineages collapsed"); }
+  if (data.version_filter !== null && data.version_filter !== undefined) {
+    line.push("version " + data.version_filter + " only");
+  }
+  line = line.concat(composeParts(META_PARTS, data));
+  el("meta").innerHTML = composeParts(BANNERS, data).join("")
+    + '<span class="timing">' + line.join("  |  ") + "</span>" + perfPanel(data);
+}
+
+// ---- full-code viewer -----------------------------------------------------------------------------
+// Opened by clicking a hit. The search response only carries a preview, so the full text comes from
+// GET /doc. A document shows its id; a file:start-end (and real file line numbers) only when the
+// index actually has source-file metadata.
+var COLLAPSE_LINES = 30;
+var viewerText = "";
+
+function lineNumbers(first, n) {
+  var out = [];
+  for (var i = 0; i < n; i++) { out.push(first + i); }
+  return out.join("\n");
+}
+
+function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) { return navigator.clipboard.writeText(text); }
+  return new Promise(function (resolve, reject) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    if (ok) { resolve(); } else { reject(new Error("copy is not available here")); }
+  });
+}
+
+async function openViewer(docId) {
+  el("viewer").style.display = "";
+  el("vwTitle").textContent = docId;
+  el("vwTag").textContent = "";
+  el("vwToggle").style.display = "none";
+  el("vwBody").innerHTML = '<div class="note" style="padding:12px">loading&hellip;</div>';
+  try {
+    var r = await fetch("/doc?id=" + encodeURIComponent(docId) + "&index=" + encodeURIComponent(el("index").value));
+    var d = await r.json();
+    if (!r.ok) { el("vwBody").innerHTML = '<div class="err">' + escapeHtml(d.detail || r.statusText) + "</div>"; return; }
+    viewerText = d.text;
+    el("vwTitle").textContent = (d.has_source_file && d.location) ? d.location : d.doc_id;
+    var tags = ["document " + d.doc_id, d.n_lines + " line" + (d.n_lines === 1 ? "" : "s")];
+    if (d.version !== undefined) { tags.push("v" + d.version); }
+    if (d.commit_short) { tags.push("commit " + d.commit_short); }
+    el("vwTag").textContent = tags.join(" · ");
+    var long = d.n_lines > COLLAPSE_LINES;
+    el("vwBody").innerHTML = '<div class="codewrap' + (long ? " collapsed" : "") + '" id="vwWrap">'
+      + '<pre class="gutter">' + lineNumbers(d.first_line, d.n_lines) + "</pre>"
+      + '<pre class="code">' + highlightPython(d.text) + "</pre></div>";
+    el("vwToggle").style.display = long ? "" : "none";
+    el("vwToggle").textContent = "Show all " + d.n_lines + " lines";
+  } catch (e) {
+    el("vwBody").innerHTML = '<div class="err">' + escapeHtml(String(e)) + "</div>";
+  }
+}
+function closeViewer() { el("viewer").style.display = "none"; }
+
+el("vwToggle").addEventListener("click", function () {
+  var wrap = el("vwWrap");
+  if (!wrap) { return; }
+  var collapsed = wrap.classList.toggle("collapsed");
+  el("vwToggle").textContent = collapsed ? "Show all lines" : "Collapse";
+});
+el("vwCopy").addEventListener("click", function () {
+  copyText(viewerText).then(function () { el("vwCopy").textContent = "Copied"; },
+                            function () { el("vwCopy").textContent = "Copy failed"; });
+  setTimeout(function () { el("vwCopy").textContent = "Copy"; }, 1500);
+});
+el("vwClose").addEventListener("click", closeViewer);
+el("viewer").addEventListener("click", function (ev) { if (ev.target === el("viewer")) { closeViewer(); } });
+document.addEventListener("keydown", function (ev) { if (ev.key === "Escape") { closeViewer(); } });
+el("results").addEventListener("click", function (ev) {
+  var t = ev.target;
+  if (!t.closest) { return; }
+  var copyBtn = t.closest("button[data-copy]");
+  if (copyBtn) { copyDoc(copyBtn); return; }
+  var histBtn = t.closest("button[data-history]");
+  if (histBtn) { showHistory(histBtn); return; }
+  var row = t.closest("[data-open]");
+  if (row) { openViewer(row.getAttribute("data-open")); return; }
+  var hit = t.closest(".hit[data-doc]");
+  if (!hit || t.closest("button, a, summary, details, input, select")) { return; }
+  openViewer(hit.getAttribute("data-doc"));
+});
+
+// "copy": the whole snippet (not the preview), fetched from /doc.
+async function copyDoc(btn) {
+  var old = btn.textContent;
+  try {
+    var r = await fetch("/doc?id=" + encodeURIComponent(btn.getAttribute("data-copy")) + "&index=" + encodeURIComponent(el("index").value));
+    var d = await r.json();
+    if (!r.ok) { throw new Error(d.detail || r.statusText); }
+    await copyText(d.text);
+    btn.textContent = "copied";
+  } catch (e) { btn.textContent = "failed"; }
+  setTimeout(function () { btn.textContent = old; }, 1200);
+}
+
+// "View history": every version of this lineage, oldest first, from the existing /history endpoint.
+async function showHistory(btn) {
+  var box = btn.parentNode.querySelector(".histbox");
+  if (box.getAttribute("data-open-state") === "1") {          // second click hides it again
+    box.innerHTML = ""; box.setAttribute("data-open-state", "0"); return;
+  }
+  box.innerHTML = '<div class="note">loading history&hellip;</div>';
+  try {
+    var r = await fetch("/history/" + encodeURIComponent(btn.getAttribute("data-history"))
+                        + "?index=" + encodeURIComponent(el("index").value));
+    var d = await r.json();
+    if (!r.ok) { box.innerHTML = '<div class="err">' + escapeHtml(d.detail || r.statusText) + "</div>"; return; }
+    var cur = btn.getAttribute("data-cur");
+    box.innerHTML = '<div class="note">' + d.n_versions + " version" + (d.n_versions === 1 ? "" : "s")
+      + ", oldest first. Click one to open it in full.</div>"
+      + d.versions.map(function (v) { return versionRow(v, "", v.doc_id === cur); }).join("");
+    box.setAttribute("data-open-state", "1");
+  } catch (e) {
+    box.innerHTML = '<div class="err">' + escapeHtml(String(e)) + "</div>";
+  }
+}
+
+el("examples").addEventListener("click", function (ev) {
+  var chip = ev.target.closest ? ev.target.closest("button[data-i]") : null;
+  if (!chip) { return; }
+  el("q").value = EXAMPLES[parseInt(chip.getAttribute("data-i"), 10)].text;
+  updateQueryInfo();
+  el("q").focus();
+});
+
+// Enter inserts a newline (queries are often whole problem statements); Ctrl/Cmd+Enter searches.
+el("q").addEventListener("keydown", function (ev) {
+  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+    ev.preventDefault();
+    if (typeof el("form").requestSubmit === "function") { el("form").requestSubmit(); }
+    else { el("go").click(); }
+  }
+});
+function autoGrow() {
+  var q = el("q");
+  q.style.height = "auto";
+  q.style.height = Math.min(q.scrollHeight, 240) + "px";
+}
+function updateQueryInfo() {
+  autoGrow();
+  var v = el("q").value;
+  el("qInfo").textContent = v ? (v.split("\n").length + " line(s), " + v.length + " characters") : "";
+}
+el("q").addEventListener("input", updateQueryInfo);
+
+el("form").addEventListener("submit", async function (ev) {
+  ev.preventDefault();
+  var body = {
+    query: el("q").value,
+    k: parseInt(el("k").value, 10),
+    index: el("index").value,
+    all_versions: el("allv").checked,
+    preview_chars: 700,
+    suggestions: el("sugg").checked,
+    explain: true
+  };
+  if (el("cat").value) { body.category = el("cat").value; }
+  var v = el("ver").value.trim();
+  if (v !== "") { body.version = parseInt(v, 10); }
+  var chosen = indexList[el("index").value];
+  if (chosen && chosen.available === false) {
+    el("meta").textContent = "";
+    el("results").innerHTML = problemBox(404, "index " + el("index").value + " is not built on this server");
+    return;
+  }
+  el("go").disabled = true;
+  el("meta").textContent = "";
+  el("results").innerHTML = loadingBox("Searching\u2026 (the first search on an index also loads its model)");
+  try {
+    var url = el("agent").checked ? "/agent" : "/search";
+    if (el("agent").checked) {
+      body = { question: body.query, k: body.k, index: body.index };
+    }
+    var r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    var data = await r.json();
+    if (!r.ok) {
+      el("meta").textContent = "";
+      el("results").innerHTML = problemBox(r.status, data.detail || r.statusText);
+    } else {
+      if (el("agent").checked) { renderAgent(data); }
+      else {
+        attachSuggestions(data); render(data);
+        var sec = document.querySelector(".results");
+        if (sec && sec.scrollIntoView) { sec.scrollIntoView({ behavior: "smooth", block: "start" }); }
+      }
+    }
+  } catch (e) {
+    el("meta").textContent = "";
+    el("results").innerHTML = problemBox(0, "Cannot reach the server: " + e);
+  } finally {
+    el("go").disabled = false;
+    refreshHealth();
+  }
+});
+
+el("histBtn").addEventListener("click", async function () {
+  var hint = (indexInfo && indexInfo.kind === "versioned" && indexInfo.chunked)
+    ? "Lineage id, e.g. pkg/tools.py::add"
+    : "Snippet id (versioned index), e.g. snip0007";
+  var id = prompt(hint);
+  if (!id) { return; }
+  el("results").innerHTML = "";
+  el("meta").textContent = "loading history\u2026";
+  try {
+    var r = await fetch("/history/" + encodeURIComponent(id)
+                        + "?index=" + encodeURIComponent(el("index").value));
+    var data = await r.json();
+    if (!r.ok) {
+      el("results").innerHTML = '<div class="err">' + escapeHtml(data.detail || r.statusText) + "</div>";
+      el("meta").textContent = "";
+      return;
+    }
+    var out = "";
+    data.versions.forEach(function (v) {
+      out += '<div class="hit"><h3><span class="loc">' + escapeHtml(v.doc_id) + "</span>"
+          + '<span class="tag">' + escapeHtml(v.mutation || "") + " · hash " + escapeHtml(v.content_hash)
+          + '</span><span class="score">v' + v.version + "</span></h3><pre>"
+          + highlightPython(v.preview) + "</pre></div>";
+    });
+    el("results").innerHTML = out;
+    el("meta").innerHTML = '<span class="timing">' + data.n_versions
+        + " versions of " + escapeHtml(data.snippet_id) + ", oldest first</span>";
+  } catch (e) {
+    el("results").innerHTML = '<div class="err">' + escapeHtml(String(e)) + "</div>";
+  }
+});
+
+function renderReindex(rep) {
+  var head = rep.dry_run ? "Dry run - nothing written"
+    : (rep.written ? "Index updated" : "Index already up to date");
+  el("results").innerHTML = '<div class="trace"><b>' + escapeHtml(head) + "</b> · "
+    + escapeHtml(rep.kind) + " index from <span class=\"loc\">" + escapeHtml(String(rep.source))
+    + "</span><ol>"
+    + "<li>chunks: <b>" + rep.added + "</b> added · <b>" + rep.modified + "</b> modified · <b>"
+    + rep.unchanged + "</b> unchanged · <b>" + rep.removed + "</b> removed (" + rep.n_docs_before
+    + " &rarr; " + rep.n_docs_after + ")</li>"
+    + "<li>embeddings: <b>" + rep.embeddings_reused + "</b> reused · <b>" + rep.embeddings_recomputed
+    + "</b> " + (rep.dry_run ? "to recompute" : "recomputed") + "</li>"
+    + "<li>time: " + rep.elapsed_seconds.toFixed(2) + " s (scan " + rep.scan_seconds.toFixed(2)
+    + " s, encode " + rep.encode_seconds.toFixed(2) + " s)</li></ol>"
+    + (rep.categories_dropped ? '<div class="note">category tags were dropped (stale after the change).</div>' : "")
+    + '<div class="note">Search again: the next query sees the edit.</div></div>';
+  el("meta").textContent = "";
+}
+
+el("reindexBtn").addEventListener("click", async function () {
+  var btn = el("reindexBtn");
+  btn.disabled = true;
+  el("results").innerHTML = "";
+  el("meta").textContent = "updating index\u2026";
+  try {
+    var r = await fetch("/reindex", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ index: el("index").value })
+    });
+    var data = await r.json();
+    if (!r.ok) {
+      el("meta").textContent = "";
+      el("results").innerHTML = '<div class="err">' + escapeHtml(data.detail || r.statusText) + "</div>";
+    } else {
+      renderReindex(data);
+    }
+  } catch (e) {
+    el("results").innerHTML = '<div class="err">' + escapeHtml(String(e)) + "</div>";
+  } finally {
+    btn.disabled = false;
+    refreshHealth();
+  }
+});
+
+syncAgentMode();      // a reload can restore the checkbox ticked
+loadIndexes();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Test configuration only. Deliberately no [project] / [build-system] table: this repo is run as
+# scripts from its root, not installed as a package, and adding those would change how pip and CI
+# treat it.
+#
+# Why `pythonpath` is here: the tests import `src.*`, which only resolves when the repo root is on
+# sys.path. `python -m pytest` adds the current directory automatically, but the `pytest` console
+# script does NOT -- so the suite passed locally and failed in CI with
+# `ModuleNotFoundError: No module named 'src'` in all 10 test files. Setting it here makes both
+# invocations behave the same, which is the actual fix; running the suite one particular way was
+# only ever hiding the problem.
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "model: loads a real model; needs RUN_MODEL_TESTS=1",
+]

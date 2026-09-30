@@ -1,0 +1,12 @@
+# CPU-only serving dependencies (Dockerfile / src/cli.py / src/api.py).
+# Install with:  pip install -r requirements-serve.txt --extra-index-url https://download.pytorch.org/whl/cpu
+# Deliberately excludes mteb, datasets and rank-bm25: serving loads a prebuilt index and encodes one
+# query, so nothing here needs the evaluation stack.
+torch
+transformers
+sentence-transformers
+numpy
+fastapi
+uvicorn[standard]
+pydantic
+psutil

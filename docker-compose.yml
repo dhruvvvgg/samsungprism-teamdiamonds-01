@@ -1,0 +1,36 @@
+# One command to serve the API and the web UI on CPU, with an index directory mounted:
+#
+#   docker compose up --build            # then open http://localhost:8000/
+#
+# The index is MOUNTED, not baked in (see the Dockerfile). By default the submitted 1.7B index in
+# ./runtime_index is served. Pick another with INDEX_HOST_DIR, e.g. the 0.6B lite index (about 4.5 GB of
+# RAM instead of about 11 GB):
+#
+#   INDEX_HOST_DIR=./runtime_index_lite docker compose up --build
+#
+# The model weights are downloaded from Hugging Face on the first search and cached in the named volume
+# `hf-cache`, so a restart does not download them again. Nothing here changes what is served: same image,
+# same code path as `docker run`, CPU only, no GPU reservation.
+#
+# The index is mounted read-only. That is right for the APPS indexes (they are never re-scanned); to try
+# the "Update index" button, mount a custom-folder index and its source folder writable instead.
+services:
+  api:
+    build: .
+    image: apps-retrieval
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - ${INDEX_HOST_DIR:-./runtime_index}:/app/runtime_index:ro
+      - hf-cache:/app/hf_cache
+    environment:
+      INDEX_DIR: /app/runtime_index
+      SEARCH_DEVICE: cpu
+      # unset = physical cores; set it on a shared machine
+      SEARCH_THREADS: ${SEARCH_THREADS:-}
+      MAX_QUERY_TOKENS: ${MAX_QUERY_TOKENS:-1024}
+      QUERY_CACHE: ${QUERY_CACHE:-1}
+    restart: unless-stopped
+
+volumes:
+  hf-cache:

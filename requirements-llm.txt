@@ -1,0 +1,11 @@
+# OPTIONAL: provider SDKs for the LLM re-judge stage (src/agent/llm_client.py).
+#
+# Not needed to evaluate, build an index, serve, or run the tests -- every import of these is
+# function-local, so the code loads and the whole test suite passes without them installed. Install
+# only if you intend to enable the rejudge stage, which is off in every shipped config: it was measured
+# in P0 and rejected (recall@100 is 0.991, so its trigger almost never fires).
+#
+#   pip install -r requirements-llm.txt
+openai
+anthropic
+google-generativeai

@@ -1,0 +1,29 @@
+# Evaluation / development stack: what the official run, the dev protocol, the tests and CI need.
+#
+# Four requirement files, so a package nobody uses cannot break an install that does not need it:
+#   requirements.txt              this one -- evaluation, dev protocol, tests, CI
+#   requirements-serve.txt        CPU serving only (the Docker image): no mteb, no datasets
+#   requirements-experiments.txt  the optional dev experiments B and F (LoRA fine-tuning)
+#   requirements-llm.txt          optional provider SDKs for the disabled LLM re-judge stage
+# The LLM provider SDKs are OPTIONAL and live in requirements-llm.txt: the re-judge stage that uses
+# them is disabled in every shipped config (it was measured and rejected in P0), and nothing else
+# imports them. Keeping them out of the default install stops a deprecated provider SDK from being
+# able to break an install that does not use it.
+mteb
+sentence-transformers
+transformers
+datasets
+rank-bm25
+numpy
+scipy
+einops
+tqdm
+pandas
+pydantic
+python-dotenv
+fastapi
+uvicorn
+psutil
+httpx
+pytest
+flake8

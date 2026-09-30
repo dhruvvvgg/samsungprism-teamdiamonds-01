@@ -1,0 +1,27 @@
+{
+  "_comment": "DEFAULT official configuration on main: F2LLM-v2-1.7B alone, no reranker. This is the confirmed, affordable path (~16 min GPU) and the one main documents. Published test NDCG@10 for this model unreranked is 0.93692. The reranked variant (+~0.007 NDCG@10 on dev, but a multi-hour run) lives on the qwen3-reranker-official branch as configs/official_f2llm17b_qwen3_k30_a05.json.",
+  "preset": "f2llm-v2-1.7b",
+  "reference": {
+    "ndcg_at_10": 0.93692,
+    "label": "published MTEB test NDCG@10 for F2LLM-v2-1.7B unreranked, revision 3766d46e (our official run: 0.9376)"
+  },
+  "dense_variants": [
+    "registry+full"
+  ],
+  "bm25": {
+    "enabled": false
+  },
+  "rrf": {
+    "k": 60,
+    "w_dense": 1.0,
+    "w_bm25": 1.0,
+    "depth": 100
+  },
+  "rerank": {
+    "enabled": false
+  },
+  "rejudge": {
+    "enabled": false
+  },
+  "final_depth": 1000
+}

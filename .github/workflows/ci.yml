@@ -1,0 +1,110 @@
+name: CI
+
+# No model is ever downloaded in CI. The test suite is fully mocked and the end-to-end checks run on the
+# hashing encoder (src/runtime_index.py::HashingQueryEncoder), so the whole workflow is CPU-only and
+# needs no dataset and no HF token. CI proves the plumbing works; accuracy numbers come from Kaggle.
+#
+# The install is split into named steps on purpose: when a dependency breaks, the log should say which
+# one rather than failing as a single opaque "Install" step.
+on:
+  push:                 # every branch, so a feature branch is verified before it is merged
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The repo runs as scripts from its root, so `src` only resolves with the root on sys.path.
+    # pyproject.toml's `pythonpath = ["."]` handles pytest; this covers the `python src/...` smoke
+    # steps as well, so neither depends on how the interpreter happened to be invoked.
+    env:
+      PYTHONPATH: .
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Show environment
+        run: |
+          python --version
+          pip --version
+
+      # CPU torch wheels: the default index would pull ~2.5 GB of CUDA libraries CI can never use.
+      - name: Install torch (CPU wheels)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu torch
+
+      - name: Install the rest of the requirements
+        run: pip install -r requirements.txt
+
+      - name: Show what is installed
+        if: always()
+        run: pip list
+
+      # The ignore list matches the codebase's existing style: `l` for a ranked list (E741) and the
+      # continuation-line indents flake8 dislikes but the repo uses consistently.
+      - name: Lint
+        run: |
+          flake8 src tests --max-line-length=110 \
+            --extend-ignore=E501,W503,E226,E741,E402,E305,E306,E127,E128
+
+      - name: Mocked test suite
+        run: pytest tests -q
+
+      - name: Smoke test - build a mock index and query it through the CLI
+        run: |
+          set -eux
+          python src/build_index.py --source mock --mock-encoder --limit 24 --out ci_index
+          python src/cli.py "sum the scores whose value is < 100" -k 3 --index ci_index \
+              --mock-encoder --verify-index
+          python src/cli.py "sum the scores" -k 3 --index ci_index --mock-encoder --json > hits.json
+          python -c "import json;d=json.load(open('hits.json'));assert len(d['result']['hits'])==3, d"
+
+      - name: Smoke test - interactive mode reads queries from stdin
+        run: |
+          set -eux
+          printf 'sum the scores\n:k 2\nbinary search\n:quit\n' \
+            | python src/cli.py --interactive --index ci_index --mock-encoder
+
+      - name: Smoke test - versioned index, history and version targeting
+        run: |
+          set -eux
+          python src/build_version_index.py --mock-encoder --n-snippets 30 --n-versions 3 \
+              --out ci_version_index --fixture-out ci_fixture.json
+          python src/cli.py "sum the scores" -k 5 --index ci_version_index --mock-encoder
+          python src/cli.py "sum the scores" -k 5 --index ci_version_index --mock-encoder --version 2
+          python src/cli.py --history snip0001 --index ci_version_index --mock-encoder
+          python src/bench_versions.py --mock-encoder --n-snippets 30 --n-versions 3 --out ci_p1.json
+          python src/bench_evolution.py --mock-encoder --index ci_version_index \
+              --fixture ci_fixture.json --limit-queries 20 --out ci_bonus.json
+
+      - name: Smoke test - CPU benchmark with the thread sweep
+        run: |
+          set -eux
+          python src/bench_cpu.py --index ci_index --mock-encoder --queries-source mock \
+              --n-queries 5 --thread-sweep --out ci_bench.json
+          python -c "import json;d=json.load(open('ci_bench.json'));assert d['thread_sweep'], d"
+
+      - name: Smoke test - CPU precision check
+        run: |
+          set -eux
+          python src/check_cpu_precision.py --index ci_index --mock-encoder --n-queries 5 \
+              --queries-source mock --out ci_precision.json
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the CPU serving image
+        run: docker build -t apps-retrieval:ci .
+      - name: Run the CLI inside the image against a mock index
+        run: |
+          set -eux
+          docker run --rm apps-retrieval:ci \
+            sh -c "python src/build_index.py --source mock --mock-encoder --limit 16 --out /tmp/idx \
+                   && python src/cli.py 'sum the scores' -k 2 --index /tmp/idx --mock-encoder"
