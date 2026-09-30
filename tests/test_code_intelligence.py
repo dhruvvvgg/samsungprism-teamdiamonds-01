@@ -719,7 +719,6 @@ def test_agent_benchmark_runtime_guard_aborts_on_zero_semantic_hits(demo_index, 
     import src.bench_agent as ba
 
     # Force search to return empty hits so dense hits 0
-    orig_search = SearchService.search
     monkeypatch.setattr(SearchService, "search", lambda self, q, **kw: {"hits": []})
 
     with pytest.raises(RuntimeError, match="Dense hit rate is 0.0 across all .* semantic questions"):
