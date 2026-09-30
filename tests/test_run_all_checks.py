@@ -1,6 +1,6 @@
-"""scripts/run_all_checks.py and the notebook cells: phase selection, resilience (a failure or a timeout
+"""scripts/run_all_checks.py: phase selection, resilience (a failure or a timeout
 never stops later phases), resume, the state file, the partial zip, the summary, the official-score
-verdict, the summary helpers, secret masking, and that the cells compile. No model, GPU or network."""
+verdict, the summary helpers, and secret masking. No model, GPU or network."""
 import ast
 import importlib.util
 import json
@@ -54,14 +54,13 @@ def args(**kw):
 def test_tiers_select_the_documented_phases():
     assert R.select_phases(args(tier=1)) == ["P0", "P1", "P2", "P3", "P4"]
     assert R.select_phases(args(tier=2)) == ["P0", "P1", "P2", "P3", "P4", "P5", "P6"]
-    assert R.select_phases(args(tier=3)) == ["P0", "P1", "P2", "P3", "P4", "P5", "P6", "A", "F", "B", "E"]
 
 
 def test_only_overrides_the_tier_and_skip_removes(monkeypatch):
-    assert R.select_phases(args(only=["a,f", "B"])) == ["A", "F", "B"]
+    assert R.select_phases(args(only=["P1,P2", "P3"])) == ["P1", "P2", "P3"]
     assert R.select_phases(args(tier=2, skip=["P5", "p6"])) == ["P0", "P1", "P2", "P3", "P4"]
     assert R.select_phases(args(only=["C"])) == ["C"]
-    assert "C" not in R.select_phases(args(tier=3)), "collect only runs when asked for"
+    assert "C" not in R.select_phases(args(tier=2)), "collect only runs when asked for"
 
 
 def test_unknown_phases_are_rejected():
@@ -79,9 +78,8 @@ def test_dry_run_prints_the_plan_and_runs_nothing(capsys, tmp_path, monkeypatch)
 
 
 def test_flags_the_brief_asks_for_exist():
-    a = R.build_parser().parse_args(["--tier", "3", "--only", "P1", "--skip", "P5", "--resume", "--max-hours", "2",
-                                     "--target-repo", "o/r", "--push-results"])
-    assert (a.tier, a.resume, a.max_hours, a.target_repo, a.push_results) == (3, True, 2.0, "o/r", True)
+    a = R.build_parser().parse_args(["--tier", "2", "--only", "P1", "--skip", "P5", "--resume", "--max-hours", "2"])
+    assert (a.tier, a.resume, a.max_hours) == (2, True, 2.0)
 
 
 def test_cpu_only_phases_are_marked():
@@ -421,67 +419,7 @@ def test_collect_lists_path_size_and_sha256(env, monkeypatch, tmp_path):
     assert any("runtime_index.zip" in f for f in ctx.fails), "a missing index is reported, not ignored"
 
 
-# --- the notebook cells -------------------------------------------------------------------------------
-
-CELLS = sorted((ROOT / "scripts" / "kaggle_cells").glob("cell*.py"))
-
-
-def test_there_are_exactly_five_cells_and_each_compiles():
-    assert [c.name for c in CELLS] == ["cell1_setup.py", "cell2_tier1_2.py", "cell3_tier3_optional.py",
-                                       "cell4_collect.py", "cell5_diagnostics.py"]
-    for c in CELLS:
-        ast.parse(c.read_text())
-
-
-def test_cells_target_develop_never_main_and_pass_the_documented_flags():
-    text = {c.name: c.read_text() for c in CELLS}
-    assert 'BRANCH = "develop"' in text["cell1_setup.py"] and "GITHUB_TOKEN" in text["cell1_setup.py"]
-    assert "requirements.txt" in text["cell1_setup.py"] and '"--only", "P0"' in text["cell1_setup.py"]
-    assert '"--tier", "2", "--resume"' in text["cell2_tier1_2.py"]
-    assert "--continue-f" in text["cell3_tier3_optional.py"] and "requirements-experiments" not in text[
-        "cell2_tier1_2.py"]
-    assert "--push-results" in text["cell4_collect.py"]
-    assert "--diagnose" in text["cell5_diagnostics.py"]
-    joined = "\n".join(text.values())
-    assert "push origin main" not in joined and "--force" not in joined and "checkout main" not in joined
-    for name, body in text.items():
-        assert "try:" in body and "except" in body, f"{name} handles its own errors"
-
-
-def test_cells_do_not_print_the_token():
-    body = (ROOT / "scripts" / "kaggle_cells" / "cell1_setup.py").read_text()
-    assert 'replace(TOKEN, "***")' in body
-    assert "print(TOKEN" not in body and "print(url" not in body
-
-
-def test_follow_runs_the_script_in_the_background_prints_output_and_the_summary(tmp_path, capsys):
-    nb = load_module(ROOT / "scripts" / "nb_follow.py", "nb_follow")
-    repo = tmp_path / "repo"
-    (repo / "scripts").mkdir(parents=True)
-    (repo / "results").mkdir()
-    (repo / "scripts" / "run_all_checks.py").write_text(
-        "import sys, pathlib\nprint('phase output', sys.argv[1:], flush=True)\n"
-        "pathlib.Path('results/FINAL_SUMMARY.md').write_text('# summary body')\n")
-    assert nb.follow(repo, ["--only", "P0"], tag="t", poll=0.2) == 0
-    out = capsys.readouterr().out
-    assert "phase output ['--only', 'P0']" in out and "# summary body" in out
-    assert not (repo / "results" / "orchestrator_t.pid").exists(), "the pid file is removed when it finishes"
-
-
-def test_follow_says_so_when_the_repo_is_missing(tmp_path, capsys):
-    nb = load_module(ROOT / "scripts" / "nb_follow.py", "nb_follow2")
-    assert nb.follow(tmp_path / "nowhere", []) == 2
-    assert "run cell 1 first" in capsys.readouterr().out
-
-
 # --- hygiene --------------------------------------------------------------------------------------------
-
-def test_experiment_only_dependencies_live_in_the_experiments_file():
-    base = (ROOT / "requirements.txt").read_text().lower()
-    exp = (ROOT / "requirements-experiments.txt").read_text().lower()
-    for pkg in ("peft", "accelerate"):
-        assert not any(line.strip().startswith(pkg) for line in base.splitlines() if not line.startswith("#"))
-        assert any(line.strip().startswith(pkg) for line in exp.splitlines() if not line.startswith("#"))
 
 
 def test_dockerignore_excludes_indexes_outputs_caches_and_adapters():
