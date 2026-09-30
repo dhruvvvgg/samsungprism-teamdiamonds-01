@@ -3,7 +3,7 @@
 import os, subprocess, sys
 from pathlib import Path
 
-BRANCH = "main"                                      # or the branch you want to test
+BRANCH = "develop"                                   # or the branch you want to test
 REPO_HOST = "github.com/dhruvvvgg/samsungprism-teamdiamonds-01.git"
 REPO = Path("/kaggle/working/prism-test")
 
