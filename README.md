@@ -155,9 +155,7 @@ CPU serving, measured on 2 physical cores, fp32, uncapped:
 | p95 latency | ~19 s | ~8.4 s |
 | 1 thread, p50 | 13.6 s | 5.3 s |
 | Peak RSS | 11.0 GB | 4.5 GB |
-| Model load (once per process) | ~15 s | not yet measured |
 | Vector search itself | 4–6 ms | 4–6 ms |
-| Warm short query (~22 tokens) | ~1.05 s | not yet measured |
 
 Nearly all of the time is query encoding; retrieval is 4–6 ms. APPS queries are whole problem statements and attention cost grows faster than linearly in sequence length, so latency scales with query length, not with corpus size. Two cores against one is roughly 1.8×, so more cores is the one lever with no quality cost. The warm short-query figure is the one that matters for a live demo.
 
