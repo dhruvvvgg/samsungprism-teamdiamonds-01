@@ -335,3 +335,39 @@ def test_the_page_uses_the_full_desktop_width_and_leaves_room_under_the_hero():
     css = HTML.split("</style>")[0]
     assert ".shell { max-width: 1760px" in css
     assert "margin: clamp(64px, 9vw, 120px) auto 0" in css
+
+
+# --- Phase 5: UI polish ---------------------------------------------------------------------------------
+
+def test_result_card_has_flex_row_middle_ellipsis_and_subline():
+    css = HTML.split("</style>")[0]
+    assert ".hit-top-row" in css and ".hit-subline" in css
+    assert "display: flex" in css
+    assert "justify-content: space-between" in css
+    assert "function middleEllipsis" in HTML
+    assert 'class="badge score"' in HTML
+    assert "hit-subline" in HTML
+
+
+def test_dynamic_index_selector_has_friendly_labels_and_fallback():
+    assert "FRIENDLY_INDEX_LABELS" in HTML
+    assert "F2LLM-1.7B Full" in HTML
+    assert "F2LLM-0.6B Lite" in HTML
+    assert "Click 40-commit History" in HTML
+    assert "FALLBACK_INDEXES" in HTML
+    assert "not on disk" in HTML
+
+
+def test_unsupported_controls_conditionally_disabled_with_tooltip():
+    assert "VERSIONED_TOOLTIP" in HTML
+    assert "Available on versioned indexes like Click History" in HTML
+    assert "function syncIndexCapabilities" in HTML
+    assert "loadCategories" in HTML
+
+
+def test_backend_error_translation_messages():
+    assert "function friendlyErrorMessage" in HTML
+    assert "Model/index unavailable -- start server or choose an index on disk" in HTML
+    assert "Document or version not found" in HTML
+    assert "problemBox(r.status" in HTML
+

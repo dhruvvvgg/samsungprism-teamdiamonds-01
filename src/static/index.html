@@ -131,14 +131,16 @@
   .route { font-size: 13px; color: var(--muted); margin-bottom: 8px; } .route b { color: var(--ink); }
   .hit { background: var(--white); border: 1px solid var(--line); border-radius: 18px; padding: 20px 24px; margin-bottom: 13px;
          transition: transform .18s, box-shadow .18s; }
-  .hit:hover { transform: translateY(-2px); box-shadow: var(--shadow-sm); }
-  .hit h3 { margin: 0 0 14px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 6px 14px; align-items: start; }
-  .rank { font-size: 12px; color: var(--blue-text); font-weight: 800; padding-top: 4px; font-variant-numeric: tabular-nums; }
+  .hit h3 { margin: 0 0 14px; font-size: inherit; font-weight: normal; }
+  .hit-top-row { display: flex; align-items: center; justify-content: space-between; gap: 8px 14px; width: 100%; flex-wrap: wrap; }
+  .rank { font-size: 12px; color: var(--blue-text); font-weight: 800; padding-top: 2px; font-variant-numeric: tabular-nums; flex: none; }
   .loc { font: 700 14px/1.4 var(--mono); overflow-wrap: anywhere; letter-spacing: -.01em; }
-  .titlemain { min-width: 0; }
-  .badges { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+  .titlemain { flex: 1 1 200px; min-width: 0; }
+  .badges { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
   .badge { font-size: 10.5px; font-weight: 600; border-radius: 999px; padding: 6px 9px; background: var(--chip); color: var(--muted); }
   .badge.score { background: var(--lime); color: var(--lime-ink); font-weight: 800; }
+  .hit-subline { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--muted); }
+  .hit-subline .dimtext { font-family: var(--mono); }
   pre { margin: 0; padding: 14px 16px; overflow-x: auto; font: 12.5px/1.5 var(--mono); background: var(--code-bg); border-radius: 12px; }
   .kw { font-weight: 700; color: var(--blue-text); } .str { color: var(--str); } .com { color: var(--com); font-style: italic; }
   .num { color: var(--num); } .fn { text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
@@ -185,7 +187,7 @@
     .results { padding: 44px 0 28px; }
     .results-head { display: block; } .results-meta { text-align: left; margin-top: 10px; }
     .hit { padding: 16px; }
-    .hit h3 { grid-template-columns: 26px minmax(0, 1fr); } .badges { grid-column: 2; justify-content: flex-start; }
+    .hit h3 { display: block; }
     .opts .sep { display: none; }
   }
   @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } * { transition: none !important; } .hit:hover { transform: none; } }
@@ -401,35 +403,127 @@ function attachSuggestions(data) {
   });
 }
 
+var FRIENDLY_INDEX_LABELS = {
+  "full": "F2LLM-1.7B Full",
+  "lite": "F2LLM-0.6B Lite",
+  "history": "Click 40-commit History",
+  "versions": "Click 40-commit History"
+};
+
+var FALLBACK_INDEXES = [
+  { name: "full", label: "F2LLM-1.7B Full", available: true, versioned: false },
+  { name: "lite", label: "F2LLM-0.6B Lite", available: true, versioned: false },
+  { name: "history", label: "Click 40-commit History", available: true, versioned: true }
+];
+
+var VERSIONED_TOOLTIP = "Available on versioned indexes like Click History";
+
+function middleEllipsis(path, maxLen) {
+  if (!path) { return ""; }
+  maxLen = maxLen || 45;
+  if (path.length <= maxLen) { return path; }
+  var parts = path.split("/");
+  if (parts.length > 2) {
+    var candidate = parts.slice(0, 2).join("/") + "/.../" + parts[parts.length - 1];
+    if (candidate.length <= maxLen) { return candidate; }
+    candidate = parts[0] + "/.../" + parts[parts.length - 1];
+    if (candidate.length <= maxLen) { return candidate; }
+  }
+  var half = Math.floor((maxLen - 3) / 2);
+  return path.slice(0, half) + "..." + path.slice(-half);
+}
+
 async function loadCategories() {
   var sel = el("cat");
   sel.innerHTML = '<option value="">any</option>';
-  sel.parentNode.style.display = "none";
-  if (!indexInfo || !indexInfo.categorized) { return; }     // only a loaded, tagged index has a filter
+  var wrap = sel.parentNode;
+  var ix = indexList[el("index").value] || {};
+  if (!indexInfo || !indexInfo.categorized) {
+    sel.disabled = true;
+    if (wrap) { wrap.style.display = "none"; wrap.title = "No categories available for this index"; }
+    return;
+  }
   try {
     var r = await fetch("/categories?index=" + encodeURIComponent(el("index").value));
     var data = await r.json();
-    Object.keys(data.families || {}).forEach(function (fam) {
+    var families = Object.keys(data.families || {});
+    families.forEach(function (fam) {
       var o = document.createElement("option");
       o.value = fam; o.textContent = fam + " (" + data.families[fam] + ")";
       sel.appendChild(o);
     });
-    sel.parentNode.style.display = Object.keys(data.families || {}).length ? "" : "none";
-  } catch (e) { /* an index without tags simply has no filter */ }
+    if (families.length) {
+      sel.disabled = false;
+      if (wrap) { wrap.style.display = ""; wrap.title = ""; }
+    } else {
+      sel.disabled = true;
+      if (wrap) { wrap.style.display = "none"; }
+    }
+  } catch (e) {
+    sel.disabled = true;
+    if (wrap) { wrap.style.display = "none"; }
+  }
 }
 
 // ---- states: loading / empty / unavailable / error ------------------------------------------------
+function friendlyErrorMessage(status, rawDetail) {
+  var msg = (rawDetail && typeof rawDetail === "object") ? JSON.stringify(rawDetail) : String(rawDetail || "");
+  if (status === 503) {
+    return "Model/index unavailable -- start server or choose an index on disk" + (msg && msg !== "Service unavailable" ? " (" + msg + ")" : "");
+  }
+  if (status === 404) {
+    return "Document or version not found" + (msg && msg !== "Not found" ? ": " + msg : "");
+  }
+  if (status === 409) {
+    return "Server busy with another operation. Please try again shortly." + (msg ? " (" + msg + ")" : "");
+  }
+  if (status === 400) {
+    return "Request refused: " + (msg || "invalid search parameters or unsupported index query");
+  }
+  return msg || "An unexpected error occurred.";
+}
+
 function problemBox(status, detail) {
   var title = { 400: "Request refused", 404: "Not found", 409: "Busy", 422: "Invalid request",
                 503: "Service unavailable" }[status] || "Error";
-  var hint = "";
-  if (status === 404) { hint = "The index (or the item) does not exist on this server. Check the index selector, or build the index first."; }
-  if (status === 503) { hint = "The index or its model failed to load. The status line above says why."; }
+  var friendly = friendlyErrorMessage(status, detail);
   return '<div class="err"><b>' + escapeHtml(title + (status ? " (" + status + ")" : "")) + "</b>"
-    + escapeHtml(String(detail || "")) + (hint ? '<div class="note">' + escapeHtml(hint) + "</div>" : "") + "</div>";
+    + escapeHtml(friendly) + "</div>";
 }
 function emptyBox(text) { return '<div class="empty">' + escapeHtml(text) + "</div>"; }
 function loadingBox(text) { return '<div class="loading">' + escapeHtml(text) + "</div>"; }
+
+function syncIndexCapabilities() {
+  var name = el("index").value;
+  var ix = indexList[name] || {};
+  var isVersioned = Boolean(ix.versioned || (indexInfo && (indexInfo.versioned || indexInfo.kind === "versioned")));
+
+  var allv = el("allv");
+  var ver = el("ver");
+  var histBtn = el("histBtn");
+  var cmpPanel = el("cmpPanel");
+
+  if (!isVersioned) {
+    allv.disabled = true;
+    if (allv.parentNode) { allv.parentNode.classList.add("off"); allv.parentNode.title = VERSIONED_TOOLTIP; }
+    ver.disabled = true;
+    if (ver.parentNode) { ver.parentNode.classList.add("off"); ver.parentNode.title = VERSIONED_TOOLTIP; }
+    histBtn.disabled = true;
+    histBtn.title = VERSIONED_TOOLTIP;
+    cmpPanel.style.display = "none";
+  } else {
+    var on = el("agent").checked;
+    if (!on) {
+      allv.disabled = false;
+      if (allv.parentNode) { allv.parentNode.classList.remove("off"); allv.parentNode.title = ""; }
+      ver.disabled = false;
+      if (ver.parentNode) { ver.parentNode.classList.remove("off"); ver.parentNode.title = ""; }
+    }
+    histBtn.disabled = false;
+    histBtn.title = "";
+    cmpPanel.style.display = "";
+  }
+}
 
 // Agent mode ignores the version, all-versions, category and extras controls (it plans its own
 // searches), so they are disabled rather than left looking as if they applied.
@@ -442,6 +536,9 @@ function syncAgentMode() {
   el("agentNote").textContent = on
     ? "Agent mode plans its own searches: the version, all-versions, category and extras controls are ignored."
     : "";
+  if (!on) {
+    syncIndexCapabilities();
+  }
 }
 el("agent").addEventListener("change", syncAgentMode);
 
@@ -469,31 +566,54 @@ function renderAgent(out) {
 }
 
 async function loadIndexes() {
+  var sel = el("index");
+  sel.innerHTML = "";
+  indexList = {};
+  var indexesData = null;
   try {
     var r = await fetch("/indexes");
-    var data = await r.json();
-    var sel = el("index");
-    sel.innerHTML = "";
-    indexList = {};
-    data.indexes.forEach(function (ix) {
-      indexList[ix.name] = ix;
-      var o = document.createElement("option");
-      o.value = ix.name;
-      o.textContent = ix.name + (ix.loaded ? " (loaded)" : "");
-      if (ix.name === data.default) { o.selected = true; }
-      sel.appendChild(o);
-    });
-    if (!data.indexes.length) {
-      var o2 = document.createElement("option");
-      o2.value = data.default; o2.textContent = data.default;
-      sel.appendChild(o2);
+    if (r.ok) {
+      indexesData = await r.json();
     }
   } catch (e) {
-    setStatus("could not list indexes: " + e, "err");
+    // Falls back to hardcoded list if endpoint missing
   }
+
+  var list = (indexesData && indexesData.indexes && indexesData.indexes.length)
+    ? indexesData.indexes
+    : FALLBACK_INDEXES;
+  var def = (indexesData && indexesData.default) ? indexesData.default : "full";
+
+  list.forEach(function (ix) {
+    indexList[ix.name] = ix;
+    var o = document.createElement("option");
+    o.value = ix.name;
+    var friendly = FRIENDLY_INDEX_LABELS[ix.name] || ix.name;
+    if (ix.available === false) {
+      o.disabled = true;
+      o.textContent = friendly + " (not on disk)";
+    } else {
+      o.textContent = friendly + (ix.loaded ? " (loaded)" : "");
+    }
+    if (ix.name === def && ix.available !== false) {
+      o.selected = true;
+    }
+    sel.appendChild(o);
+  });
+
+  if (!sel.value && sel.options.length) {
+    for (var i = 0; i < sel.options.length; i++) {
+      if (!sel.options[i].disabled) {
+        sel.selectedIndex = i;
+        break;
+      }
+    }
+  }
+
   refreshHealth();
   syncReindexButton();
   syncComparePanel();
+  syncIndexCapabilities();
 }
 
 // "Update index" only makes sense for an index that has a source to re-scan (a custom folder or a git
@@ -505,7 +625,7 @@ function syncReindexButton() {
 el("index").addEventListener("change", function () {
   el("results").innerHTML = ""; el("meta").textContent = "";
   indexInfo = {};
-  syncReindexButton(); syncComparePanel(); refreshHealth();
+  syncReindexButton(); syncComparePanel(); syncIndexCapabilities(); refreshHealth();
 });
 
 // ---- version comparison ---------------------------------------------------------------------------
@@ -567,7 +687,7 @@ el("cmpGo").addEventListener("click", async function () {
       + "&k=" + el("k").value + "&index=" + encodeURIComponent(el("index").value);
     var r = await fetch(url);
     var d = await r.json();
-    if (!r.ok) { out.innerHTML = '<div class="err">' + escapeHtml(d.detail || r.statusText) + "</div>"; return; }
+    if (!r.ok) { out.innerHTML = problemBox(r.status, d.detail || r.statusText); return; }
     var s = d.summary;
     out.innerHTML = '<div class="note">v' + d.version_a + " vs v" + d.version_b + ": " + s.appeared
       + " appeared, " + s.disappeared + " disappeared, " + s.moved + " moved, " + s.same
@@ -583,7 +703,7 @@ el("cmpGo").addEventListener("click", async function () {
           + "&index=" + encodeURIComponent(el("index").value));
         var dd = await rr.json();
         el("diffBox").innerHTML = "<h4>" + escapeHtml(id) + ": v" + a + " &rarr; v" + b + "</h4>"
-          + (rr.ok ? renderDiff(dd) : '<div class="err">' + escapeHtml(dd.detail || rr.statusText) + "</div>");
+          + (rr.ok ? renderDiff(dd) : problemBox(rr.status, dd.detail || rr.statusText));
       });
     });
   } catch (e) {
@@ -628,6 +748,7 @@ async function refreshHealth() {
   } catch (e) {
     setStatus("cannot reach the service: " + e, "err");
   }
+  syncIndexCapabilities();
   loadCategories();
 }
 
@@ -641,7 +762,6 @@ async function refreshHealth() {
 // meta part    -> an extra item on the timing line
 // banner       -> HTML shown above the results
 var TAG_PARTS = [
-  function (h) { return h.qualname ? (h.kind ? h.kind + " " + h.qualname : h.qualname) : ""; },
   function (h) { return h.version !== undefined ? "v" + h.version : ""; },
   function (h) { return h.commit_short ? "commit " + h.commit_short : ""; },
   function (h) { return h.change || ""; },
@@ -738,12 +858,33 @@ function composeParts(fns, arg) {
 }
 
 function hitTitle(h) {
-  var loc = h.location || h.doc_id;
+  var rawPath = h.file || (h.has_source_file ? h.location : "") || h.doc_id || "";
+  var basename = rawPath.split("/").pop();
+  var qual = h.qualname || basename || rawPath;
+  var displayPath = middleEllipsis(rawPath, 45);
+  var mainTitle = h.qualname ? (displayPath ? displayPath + " \u00b7 " + h.qualname : h.qualname) : (displayPath || qual);
+
+  var locLine = h.location || (h.file ? (h.file + (h.start_line ? ":" + h.start_line + "-" + h.end_line : "")) : ("document " + h.doc_id));
+  var subBits = [];
+  if (locLine) { subBits.push(locLine); }
+  if (h.kind) { subBits.push(h.kind); }
+
   var tags = composeParts(TAG_PARTS, h).map(function (t) { return '<span class="badge">' + escapeHtml(t) + "</span>"; });
-  return '<h3><span class="rank">' + ("0" + h.rank).slice(-2) + '</span><span class="titlemain"><span class="loc">'
-    + escapeHtml(loc) + '</span></span><span class="badges"><span class="badge score" title="Cosine similarity between the query and this snippet\'s embeddings. Only meaningful for ordering results: it is not a percentage, a probability or a confidence.">'
-    + "similarity score " + h.score.toFixed(4) + "</span>" + tags.join("")
-    + '<button type="button" class="copy" data-copy="' + escapeAttr(h.doc_id) + '">copy</button></span></h3>';
+
+  return '<h3><div class="hit-top-row">'
+    + '<span class="rank">' + ("0" + h.rank).slice(-2) + '</span>'
+    + '<span class="titlemain"><span class="loc" title="' + escapeAttr(rawPath) + '">' + escapeHtml(mainTitle) + '</span></span>'
+    + '<span class="badges">'
+    + '<span class="badge score" title="Cosine similarity between the query and this snippet\'s embeddings. Only meaningful for ordering results: it is not a percentage, a probability or a confidence.">'
+    + "similarity score " + h.score.toFixed(4) + "</span>"
+    + '<button type="button" class="copy" data-copy="' + escapeAttr(h.doc_id) + '">copy</button>'
+    + '</span>'
+    + '</div>'
+    + '<div class="hit-subline">'
+    + '<span class="dimtext">' + escapeHtml(subBits.join(" \u00b7 ")) + '</span>'
+    + tags.join("")
+    + '</div>'
+    + '</h3>';
 }
 
 // Compact performance panel: what this query cost and what it ran on. Every figure comes from the
@@ -830,7 +971,7 @@ async function openViewer(docId) {
   try {
     var r = await fetch("/doc?id=" + encodeURIComponent(docId) + "&index=" + encodeURIComponent(el("index").value));
     var d = await r.json();
-    if (!r.ok) { el("vwBody").innerHTML = '<div class="err">' + escapeHtml(d.detail || r.statusText) + "</div>"; return; }
+    if (!r.ok) { el("vwBody").innerHTML = problemBox(r.status, d.detail || r.statusText); return; }
     viewerText = d.text;
     el("vwTitle").textContent = (d.has_source_file && d.location) ? d.location : d.doc_id;
     var tags = ["document " + d.doc_id, d.n_lines + " line" + (d.n_lines === 1 ? "" : "s")];
@@ -901,7 +1042,7 @@ async function showHistory(btn) {
     var r = await fetch("/history/" + encodeURIComponent(btn.getAttribute("data-history"))
                         + "?index=" + encodeURIComponent(el("index").value));
     var d = await r.json();
-    if (!r.ok) { box.innerHTML = '<div class="err">' + escapeHtml(d.detail || r.statusText) + "</div>"; return; }
+    if (!r.ok) { box.innerHTML = problemBox(r.status, d.detail || r.statusText); return; }
     var cur = btn.getAttribute("data-cur");
     box.innerHTML = '<div class="note">' + d.n_versions + " version" + (d.n_versions === 1 ? "" : "s")
       + ", oldest first. Click one to open it in full.</div>"
@@ -1007,7 +1148,7 @@ el("histBtn").addEventListener("click", async function () {
                         + "?index=" + encodeURIComponent(el("index").value));
     var data = await r.json();
     if (!r.ok) {
-      el("results").innerHTML = '<div class="err">' + escapeHtml(data.detail || r.statusText) + "</div>";
+      el("results").innerHTML = problemBox(r.status, data.detail || r.statusText);
       el("meta").textContent = "";
       return;
     }
@@ -1057,7 +1198,7 @@ el("reindexBtn").addEventListener("click", async function () {
     var data = await r.json();
     if (!r.ok) {
       el("meta").textContent = "";
-      el("results").innerHTML = '<div class="err">' + escapeHtml(data.detail || r.statusText) + "</div>";
+      el("results").innerHTML = problemBox(r.status, data.detail || r.statusText);
     } else {
       renderReindex(data);
     }
