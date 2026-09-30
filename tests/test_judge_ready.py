@@ -183,4 +183,3 @@ def test_serve_without_mock_does_not_set_mock_encoder(monkeypatch, tmp_path, cap
     captured = capsys.readouterr()
     assert "MOCK ENCODER: results are not real" not in captured.out
     assert os.environ.get("MOCK_ENCODER") != "1"
-
