@@ -3,12 +3,9 @@ import functools
 import hashlib
 import http.server
 import json
-import os
 from pathlib import Path
 import threading
 import zipfile
-
-import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
