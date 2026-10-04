@@ -250,7 +250,7 @@ INDEX_HOST_DIR=./runtime_index_lite docker compose up --build   # the 0.6B lite 
 PORT=9000 SEARCH_THREADS=2 docker compose up --build
 ```
 
-If the mounted directory has no index, the container still starts and `GET /health` reports `degraded` with the reason. The first search downloads the model (network access required, once); everything after that is offline. The image builds in CI, but `docker compose up` itself has not been run end to end.
+If the mounted directory has no index, the container still starts and `GET /health` reports `degraded` with the reason. The first search downloads the model (network access required, once); everything after that is offline. The image builds in CI, but `docker compose up` itself has not been executed.
 
 One-off CLI query instead of the server:
 
