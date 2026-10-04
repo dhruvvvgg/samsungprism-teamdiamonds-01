@@ -18,7 +18,7 @@ if str(ROOT) not in sys.path:
 
 
 def detect_available_indexes(root: Path):
-    """Detect which precomputed index directories exist on disk."""
+    """Detect which precomputed index directories exist on disk and have valid manifests."""
     candidate_map = {
         "full": root / "runtime_index",
         "lite": root / "runtime_index_lite",
@@ -27,8 +27,13 @@ def detect_available_indexes(root: Path):
     }
     available = []
     for name, path in candidate_map.items():
-        if (path / "manifest.json").exists():
-            available.append((name, path))
+        manifest = path / "manifest.json"
+        if path.is_dir() and manifest.is_file():
+            try:
+                json.loads(manifest.read_text(encoding="utf-8"))
+                available.append((name, path))
+            except Exception:
+                pass
     return available
 
 
@@ -55,7 +60,7 @@ def main():
     parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind (default: 127.0.0.1)")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind (default: 8000)")
     parser.add_argument("--index", choices=["full", "lite", "history", "versions"], default=None,
-                        help="Default index to serve (default: full or first detected)")
+                        help="Default index to serve (default: lite or first detected)")
     parser.add_argument("--mock", action="store_true",
                         help="Force mock hashing encoder (no model weights, CI/smoke test mode)")
     args = parser.parse_args()
@@ -69,21 +74,21 @@ def main():
         if available_names:
             os.environ["ALLOWED_INDEXES"] = ",".join(available_names)
         else:
-            os.environ["ALLOWED_INDEXES"] = "full"
+            os.environ["ALLOWED_INDEXES"] = "lite,full"
 
     # Determine default index
     if args.index:
         chosen_index = args.index
     elif os.environ.get("INDEX_DIR"):
         chosen_index = os.environ["INDEX_DIR"]
-    elif "full" in available_names:
-        chosen_index = "full"
     elif "lite" in available_names:
         chosen_index = "lite"
+    elif "full" in available_names:
+        chosen_index = "full"
     elif "history" in available_names:
         chosen_index = "history"
     else:
-        chosen_index = "full"
+        chosen_index = "lite"
 
     os.environ["INDEX_DIR"] = chosen_index
     if not os.environ.get("SEARCH_DEVICE"):

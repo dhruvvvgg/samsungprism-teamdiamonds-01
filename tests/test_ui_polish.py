@@ -351,12 +351,52 @@ def test_result_card_has_flex_row_middle_ellipsis_and_subline():
 
 def test_dynamic_index_selector_requires_server_discovery():
     assert "FRIENDLY_INDEX_LABELS" in HTML
-    assert "F2LLM-1.7B Full" in HTML
-    assert "F2LLM-0.6B Lite" in HTML
+    assert "F2LLM-1.7B Full (submitted model, ~11 GB RAM)" in HTML
+    assert "F2LLM-0.6B Lite (default, ~4.5 GB RAM)" in HTML
     assert "Click 40-commit History" in HTML
     assert "FALLBACK_INDEXES" not in HTML
     assert "No indexes available; index discovery failed or returned an empty list." in HTML
     assert "not on disk" in HTML
+
+
+def test_agent_and_extras_tooltips_and_labels():
+    assert 'title="Plan, search, read, refine loop; no API key needed."' in HTML
+    assert "optimization notes" in HTML
+
+
+def test_both_indexes_appear_when_both_directories_exist_and_lite_is_default(tmp_path, monkeypatch):
+    import json
+    import src.runtime_index as ri
+    from fastapi.testclient import TestClient
+    import src.api as api
+
+    full_dir = tmp_path / "runtime_index"
+    lite_dir = tmp_path / "runtime_index_lite"
+    full_dir.mkdir()
+    lite_dir.mkdir()
+    (full_dir / "manifest.json").write_text(
+        json.dumps({"model": "F2LLM-v2-1.7B", "dim": 2048, "n_docs": 10, "files": {}}),
+        encoding="utf-8")
+    (lite_dir / "manifest.json").write_text(
+        json.dumps({"model": "F2LLM-v2-0.6B", "dim": 1024, "n_docs": 10, "files": {}}),
+        encoding="utf-8")
+
+    monkeypatch.setattr(ri, "INDEX_NAMES", {"full": full_dir, "lite": lite_dir})
+    monkeypatch.delenv("INDEX_DIR", raising=False)
+    monkeypatch.delenv("ALLOWED_INDEXES", raising=False)
+    monkeypatch.setattr(api, "_service", None)
+    monkeypatch.setattr(api, "_error", None)
+    monkeypatch.setattr(api, "_services", {})
+    monkeypatch.setattr(api, "_current_index", None)
+
+    client = TestClient(api.app)
+    resp = client.get("/indexes").json()
+    assert resp["default"] == "lite"
+    names = [ix["name"] for ix in resp["indexes"]]
+    assert "lite" in names
+    assert "full" in names
+    for ix in resp["indexes"]:
+        assert ix["available"] is True
 
 
 def test_unsupported_controls_conditionally_disabled_with_tooltip():
@@ -371,3 +411,43 @@ def test_backend_error_translation_messages():
     assert "Model/index unavailable -- start server or choose an index on disk" in HTML
     assert "Document or version not found" in HTML
     assert "problemBox(r.status" in HTML
+
+
+def test_memory_guard_releases_previous_and_falls_back_on_error(flat_index, tmp_path, monkeypatch):
+    client, api = client_for(flat_index, monkeypatch)
+    other = make_second_index(tmp_path)
+    monkeypatch.setenv("ALLOWED_INDEXES", f"{flat_index},{other}")
+
+    # Start with flat_index loaded
+    api.service_for(str(flat_index))
+    initial_svc = api._service
+    assert initial_svc is not None
+
+    # Switch to other index: initial service is released
+    api.service_for(str(other))
+    second_svc = api._service
+    assert second_svc is not None
+    assert second_svc is not initial_svc
+
+    # Simulate load failure on an index: should fall back to lite/default without dying
+    failing_dir = tmp_path / "failing_index"
+    failing_dir.mkdir()
+    (failing_dir / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setenv("ALLOWED_INDEXES", f"{flat_index},{other},{failing_dir}")
+
+    orig_create = api._create_service
+
+    def mock_create(name_or_path):
+        if str(name_or_path) == str(failing_dir):
+            raise MemoryError("out of memory")
+        return orig_create(name_or_path)
+
+    monkeypatch.setattr(api, "_create_service", mock_create)
+    resp = client.post("/search", json={"query": "test", "index": str(failing_dir)})
+    assert resp.status_code == 503
+    assert "out of memory" in resp.json()["detail"]
+    assert "Falling back" in resp.json()["detail"]
+    # Server is still alive and has fallback service resident
+    assert api._service is not None
+    health_resp = client.get("/health").json()
+    assert health_resp["status"] in ("ok", "degraded")

@@ -245,8 +245,8 @@
             <input type="text" id="ver" size="3" placeholder="any" style="width:62px">
           </label>
           <label class="chk">category <select id="cat"><option value="">any</option></select></label>
-          <label class="chk"><input type="checkbox" id="agent"> agent</label>
-          <label class="chk"><input type="checkbox" id="sugg"> extras</label>
+          <label class="chk" title="Plan, search, read, refine loop; no API key needed."><input type="checkbox" id="agent"> agent</label>
+          <label class="chk" title="Rule-based code optimization notes on the retrieved snippets"><input type="checkbox" id="sugg"> optimization notes</label>
         </div>
         <p class="hint">Enter adds a line, Ctrl/Cmd+Enter searches. <span id="qInfo"></span></p>
       </details>
@@ -403,8 +403,8 @@ function attachSuggestions(data) {
 }
 
 var FRIENDLY_INDEX_LABELS = {
-  "full": "F2LLM-1.7B Full",
-  "lite": "F2LLM-0.6B Lite",
+  "lite": "F2LLM-0.6B Lite (default, ~4.5 GB RAM)",
+  "full": "F2LLM-1.7B Full (submitted model, ~11 GB RAM)",
   "history": "Click 40-commit History",
   "versions": "Click 40-commit History"
 };
@@ -578,6 +578,12 @@ async function loadIndexes() {
     return;
   }
 
+  var defaultName = def;
+  var hasLite = list.some(function (ix) { return ix.name === "lite" && ix.available !== false; });
+  if (hasLite) {
+    defaultName = "lite";
+  }
+
   list.forEach(function (ix) {
     indexList[ix.name] = ix;
     var o = document.createElement("option");
@@ -589,7 +595,7 @@ async function loadIndexes() {
     } else {
       o.textContent = friendly + (ix.loaded ? " (loaded)" : "");
     }
-    if (ix.name === def && ix.available !== false) {
+    if (ix.name === defaultName && ix.available !== false) {
       o.selected = true;
     }
     sel.appendChild(o);
@@ -1116,6 +1122,12 @@ el("form").addEventListener("submit", async function (ev) {
     if (!r.ok) {
       el("meta").textContent = "";
       el("results").innerHTML = problemBox(r.status, data.detail || r.statusText);
+      if (el("index").value !== "lite" && indexList["lite"] && indexList["lite"].available !== false) {
+        el("index").value = "lite";
+        syncReindexButton();
+        syncComparePanel();
+        syncIndexCapabilities();
+      }
     } else {
       if (el("agent").checked) { renderAgent(data); }
       else {

@@ -70,47 +70,111 @@ app = FastAPI(title="Agentic Code Intelligence - APPS retrieval",
               lifespan=lifespan)
 
 
-_services = {}          # index name/path -> SearchService, so switching indexes reuses a loaded one
+_service = None
+_error = None
+_current_index = None
+_services = {}          # index name/path -> SearchService
 
 
 def default_index():
-    return os.environ.get("INDEX_DIR", "full")
+    return os.environ.get("INDEX_DIR", "lite")
+
+
+def _release_current_service():
+    global _service, _current_index
+    if _service is not None:
+        try:
+            if hasattr(_service, "encoder"):
+                if hasattr(_service.encoder, "model"):
+                    del _service.encoder.model
+                del _service.encoder
+            if hasattr(_service, "index"):
+                del _service.index
+            if hasattr(_service, "query_cache"):
+                del _service.query_cache
+        except Exception:
+            pass
+        _service = None
+    _services.clear()
+    _current_index = None
+    import gc
+    gc.collect()
+    try:
+        import torch
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:
+        pass
+
+
+def _create_service(index_name_or_path):
+    from src.query_cache import resolve_cache_size
+    from src.runtime_index import resolve_query_cap
+    from src.search_service import SearchService
+    return SearchService(
+        index_name_or_path, device=os.environ.get("SEARCH_DEVICE", "cpu"),
+        mock=os.environ.get("MOCK_ENCODER") == "1",
+        threads=(int(os.environ["SEARCH_THREADS"]) if os.environ.get("SEARCH_THREADS")
+                 else None),
+        cpu_dtype=os.environ.get("CPU_DTYPE", "fp32"),
+        int8=False,
+        max_query_tokens=resolve_query_cap(
+            int(os.environ["MAX_QUERY_TOKENS"]) if os.environ.get("MAX_QUERY_TOKENS")
+            else None),
+        query_cache_size=resolve_cache_size())
 
 
 def service_for(index):
-    """A SearchService for `index`, loaded once and cached.
+    """A SearchService for `index`.
 
-    Each distinct index keeps its own model resident (11 GB for the 1.7B, 4.5 GB for the 0.6B), so a
-    server that is asked for several indexes will hold several models. That is the honest cost of an
-    index switcher; set ALLOWED_INDEXES to restrict it on a small machine."""
+    Memory guard: Only one model is kept resident in memory. When the user switches index,
+    the previously loaded model is released before loading the new one. If loading fails
+    (out of memory or any error), it falls back to the lite index so the server does not die."""
+    global _service, _current_index, _error
     index = index or default_index()
     allowed = [x.strip() for x in os.environ.get("ALLOWED_INDEXES", "").split(",") if x.strip()]
     if allowed and index not in allowed:
         raise HTTPException(status_code=400,
                             detail=f"index {index!r} is not in ALLOWED_INDEXES ({allowed})")
-    if index == default_index():
-        return get_service()        # one model per index: the startup service IS the default index
-    if index not in _services:
-        from src.query_cache import resolve_cache_size
-        from src.runtime_index import resolve_query_cap
-        from src.search_service import SearchService
+
+    from src.runtime_index import resolve_index_dir
+    target_dir = resolve_index_dir(index).resolve()
+    current_dir = (resolve_index_dir(_current_index).resolve()
+                   if (_current_index and _service is not None) else None)
+
+    if current_dir == target_dir and _service is not None:
+        return _service
+
+    if not (target_dir / "manifest.json").is_file():
+        raise HTTPException(status_code=404, detail=f"No runtime index at {target_dir}")
+
+    # Release previous model before loading new one
+    _release_current_service()
+
+    try:
+        new_svc = _create_service(index)
+        _service = new_svc
+        _current_index = index
+        _services[index] = new_svc
+        _error = None
+        return _service
+    except Exception as exc:  # noqa: BLE001
+        err_msg = f"{type(exc).__name__}: {exc}"
+        fallback_index = "lite" if (resolve_index_dir("lite") / "manifest.json").is_file() else default_index()
+        if fallback_index == index:
+            fallback_index = default_index()
+        _release_current_service()
         try:
-            _services[index] = SearchService(
-                index, device=os.environ.get("SEARCH_DEVICE", "cpu"),
-                mock=os.environ.get("MOCK_ENCODER") == "1",
-                threads=(int(os.environ["SEARCH_THREADS"]) if os.environ.get("SEARCH_THREADS")
-                         else None),
-                cpu_dtype=os.environ.get("CPU_DTYPE", "fp32"),
-                int8=False,
-                max_query_tokens=resolve_query_cap(
-                    int(os.environ["MAX_QUERY_TOKENS"]) if os.environ.get("MAX_QUERY_TOKENS")
-                    else None),
-                query_cache_size=resolve_cache_size())
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=503, detail=f"index/model unavailable -- {exc}") from exc
-    return _services[index]
+            fallback_svc = _create_service(fallback_index)
+            _service = fallback_svc
+            _current_index = fallback_index
+            _services[fallback_index] = fallback_svc
+            _error = None
+        except Exception as fb_exc:
+            _error = f"Fallback to {fallback_index} failed: {fb_exc}"
+        raise HTTPException(
+            status_code=503,
+            detail=f"Failed to load index '{index}': {err_msg}. Falling back to lite index.") from exc
 
 
 def manifest_facts(path):
@@ -135,37 +199,43 @@ def available_indexes():
     from src.reindex import reindexable_info
     from src.runtime_index import resolve_index_dir
     out = []
-    for name, path in INDEX_NAMES.items():
-        if (path / MANIFEST).exists():
-            out.append({"name": name, "path": str(path), "loaded": name in _services,
-                        **reindexable_info(path), **manifest_facts(path)})
+    order = ["lite", "full", "versions", "history"]
+    sorted_names = [k for k in order if k in INDEX_NAMES] + [k for k in INDEX_NAMES if k not in order]
+    for name in sorted_names:
+        path = INDEX_NAMES[name]
+        p = Path(path)
+        if p.is_dir() and (p / MANIFEST).is_file():
+            facts = manifest_facts(p)
+            if facts.get("available"):
+                target_dir = p.resolve()
+                current_dir = (resolve_index_dir(_current_index).resolve()
+                               if (_current_index and _service is not None) else None)
+                loaded = (current_dir == target_dir) or (name in _services)
+                out.append({"name": name, "path": str(p), "loaded": loaded,
+                            **reindexable_info(p), **facts})
     extra = default_index()
     if extra not in INDEX_NAMES and extra not in [o["name"] for o in out]:
-        out.append({"name": extra, "path": extra, "loaded": extra in _services,
-                    **reindexable_info(resolve_index_dir(extra)),
-                    **manifest_facts(resolve_index_dir(extra))})
+        extra_dir = resolve_index_dir(extra)
+        facts = manifest_facts(extra_dir)
+        target_dir = extra_dir.resolve()
+        current_dir = (resolve_index_dir(_current_index).resolve()
+                       if (_current_index and _service is not None) else None)
+        loaded = (current_dir == target_dir) or (extra in _services)
+        out.append({"name": extra, "path": str(extra_dir), "loaded": loaded,
+                    **reindexable_info(extra_dir),
+                    **facts})
     return out
 
 
 def get_service():
     """The process-wide SearchService, built on first use. A failed load is remembered and reported."""
-    global _service, _error
+    global _service, _current_index, _error
     if _service is None and _error is None:
+        idx = default_index()
         try:
-            from src.query_cache import resolve_cache_size
-            from src.runtime_index import resolve_query_cap
-            from src.search_service import SearchService
-            _service = SearchService(os.environ.get("INDEX_DIR", "full"),
-                                     device=os.environ.get("SEARCH_DEVICE", "cpu"),
-                                     mock=os.environ.get("MOCK_ENCODER") == "1",
-                                     threads=(int(os.environ["SEARCH_THREADS"])
-                                              if os.environ.get("SEARCH_THREADS") else None),
-                                     cpu_dtype=os.environ.get("CPU_DTYPE", "fp32"),
-                                     int8=False,
-                                     max_query_tokens=resolve_query_cap(
-                                         int(os.environ["MAX_QUERY_TOKENS"])
-                                         if os.environ.get("MAX_QUERY_TOKENS") else None),
-                                     query_cache_size=resolve_cache_size())
+            _service = _create_service(idx)
+            _current_index = idx
+            _services[idx] = _service
         except Exception as exc:  # noqa: BLE001  reported through /health and /search
             _error = f"{type(exc).__name__}: {exc}"
     if _error:
@@ -201,11 +271,16 @@ def health(index: Optional[str] = None):
     Without `index` this describes the server's default index. With one, it describes THAT index -- but
     only reports on it, never loads it (a status probe must not cost an 11 GB model load), so an index
     that has not been searched yet comes back `loaded: false` with what its manifest says."""
-    if index and index != default_index():
+    if index:
         from src.reindex import allowed_index_names
         from src.runtime_index import resolve_index_dir
         if index not in allowed_index_names(default_index(), os.environ):
             raise HTTPException(status_code=400, detail=f"index {index!r} is not one this server serves")
+        target_dir = resolve_index_dir(index).resolve()
+        current_dir = (resolve_index_dir(_current_index).resolve()
+                       if (_current_index and _service is not None) else None)
+        if current_dir == target_dir and _service is not None:
+            return dict(_loaded_health(_service), index_name=index)
         svc = _services.get(index)
         if svc is not None:
             return dict(_loaded_health(svc), index_name=index)

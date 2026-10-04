@@ -25,9 +25,10 @@ subprocess.run("git clone https://github.com/dhruvvvgg/samsungprism-teamdiamonds
 # 2. Install serving deps (no CUDA, ~30s)
 subprocess.run("pip install -q -r requirements-serve.txt --extra-index-url https://download.pytorch.org/whl/cpu", shell=True)
 
-# Free Colab uses lite; full needs ~11 GB CPU RSS and a paid runtime with more RAM.
-# 3. Download only the lite index from GitHub Release
+# Free Colab uses lite by default; full needs ~11 GB CPU RSS and a paid runtime with more RAM.
+# 3. Download indexes from GitHub Release (both lite and full)
 subprocess.run("python scripts/fetch_release_assets.py --assets indexes --index lite", shell=True, check=True)
+subprocess.run("python scripts/fetch_release_assets.py --assets indexes --index full", shell=True, check=True)
 
 # Cache the lite neural weights before the fail-closed launcher checks them.
 subprocess.run(["python", "-c", "from huggingface_hub import snapshot_download; import json; m=json.load(open('runtime_index_lite/manifest.json')); snapshot_download(m['model'], revision=m.get('revision'))"], check=True)
