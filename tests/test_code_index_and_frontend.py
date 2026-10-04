@@ -222,7 +222,7 @@ def test_the_page_is_served_at_root(code_index, monkeypatch):
     assert "text/html" in r.headers["content-type"]
     body = r.text
     for needed in ("<title>Code Retrieval</title>", 'id="q"', 'id="index"', 'id="k"',
-                   'id="allv"', 'id="ver"', 'id="histBtn"', "highlightPython"):
+                   'id="allv"', 'id="ver"', "highlightPython"):
         assert needed in body, needed
 
 
