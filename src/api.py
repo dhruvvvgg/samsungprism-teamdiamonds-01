@@ -60,6 +60,8 @@ async def lifespan(app):
         get_service()
     except Exception as exc:  # noqa: BLE001  reported through /health
         globals()["_error"] = globals()["_error"] or f"{type(exc).__name__}: {exc}"
+        if os.environ.get("FAIL_CLOSED_STARTUP") == "1":
+            raise RuntimeError(f"Service startup failed: {_error}. Use --mock only for smoke tests.") from exc
     yield
 
 
@@ -186,6 +188,12 @@ class SearchRequest(BaseModel):
                                              "terms); lexical only, no extra model call")
 
 
+def _loaded_health(svc):
+    mock = getattr(svc.encoder, "model_name", "") == "mock/hashing-encoder"
+    return {"status": "degraded" if mock else "ok", "loaded": True,
+            **({"reason": "mock encoder in use"} if mock else {}), "index": svc.describe()}
+
+
 @app.get("/health")
 def health(index: Optional[str] = None):
     """Liveness plus what is loaded. Never raises: reports `loaded: false` and why instead.
@@ -200,7 +208,7 @@ def health(index: Optional[str] = None):
             raise HTTPException(status_code=400, detail=f"index {index!r} is not one this server serves")
         svc = _services.get(index)
         if svc is not None:
-            return {"status": "ok", "loaded": True, "index_name": index, "index": svc.describe()}
+            return dict(_loaded_health(svc), index_name=index)
         facts = manifest_facts(resolve_index_dir(index))
         if not facts.get("available"):
             return {"status": "ok", "loaded": False, "index_name": index, "available": False,
@@ -212,7 +220,7 @@ def health(index: Optional[str] = None):
                 "note": "the model loads at startup; if this persists, startup has not finished yet"}
     if _error:
         return {"status": "degraded", "loaded": False, "error": _error}
-    return {"status": "ok", "loaded": True, "index": _service.describe()}
+    return _loaded_health(_service)
 
 
 @app.post("/search")

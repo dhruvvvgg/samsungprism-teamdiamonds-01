@@ -8,7 +8,9 @@ Demo Video Link -- https://drive.google.com/file/d/1wDjFpHr0uRhk8UyFnRUFN7JderoI
 
 ## Try it now: one-cell judge demo (Google Colab)
 
-The fastest way to use the system without installing anything. Open a new [Google Colab](https://colab.research.google.com/) notebook (a free CPU runtime is enough; no GPU is needed for serving), paste the cell below into one code cell and run it. After about two minutes it prints a public link to the web UI.
+The fastest way to use the system without installing anything. Open a new [Google Colab](https://colab.research.google.com/) notebook (a free CPU runtime is enough; no GPU is needed for serving), paste the cell below into one code cell and run it. After downloading the index and model weights and loading the server, it prints a public link to the web UI.
+
+Free Colab: use lite (0.6B, ~4.5 GB CPU RSS). Full needs ~11 GB RSS; use a paid runtime with more RAM.
 
 ```python
 # ============================================================
@@ -23,12 +25,16 @@ subprocess.run("git clone https://github.com/dhruvvvgg/samsungprism-teamdiamonds
 # 2. Install serving deps (no CUDA, ~30s)
 subprocess.run("pip install -q -r requirements-serve.txt --extra-index-url https://download.pytorch.org/whl/cpu", shell=True)
 
-# 3. Download prebuilt indexes from GitHub Release (~60s)
-subprocess.run("python scripts/fetch_release_assets.py --assets indexes", shell=True)
+# Free Colab uses lite; full needs ~11 GB CPU RSS and a paid runtime with more RAM.
+# 3. Download only the lite index from GitHub Release
+subprocess.run("python scripts/fetch_release_assets.py --assets indexes --index lite", shell=True, check=True)
 
-# 4. Start the API + Web UI server
+# Cache the lite neural weights before the fail-closed launcher checks them.
+subprocess.run(["python", "-c", "from huggingface_hub import snapshot_download; import json; m=json.load(open('runtime_index_lite/manifest.json')); snapshot_download(m['model'], revision=m.get('revision'))"], check=True)
+
+# 4. Start the API + Web UI server (lite fits free Colab RAM)
 subprocess.Popen(
-    ["python", "scripts/serve.py", "--host", "0.0.0.0", "--port", "8000"],
+    ["python", "scripts/serve.py", "--index", "lite", "--host", "0.0.0.0", "--port", "8000"],
     stdout=open("/content/serve.log", "w"), stderr=subprocess.STDOUT
 )
 time.sleep(5)
@@ -90,8 +96,8 @@ sequenceDiagram
 
 **What to expect**
 
-- **Memory.** Free Colab has about 12.7 GB of RAM. The 1.7B model needs ~11 GB RSS on CPU, so on free Colab use the lite index (0.6B, ~4.5 GB). If the runtime restarts or the status line reports `degraded`, the full index did not fit; see `GET /health` (open `<link>/health`).
-- **First search is slower.** The model is fetched from Hugging Face on the first query and then stays warm. Later short queries take about a second on the lite model; full APPS problem statements take a few seconds (see [Resources](#resources)).
+- **Memory.** Free Colab has about 12.7 GB of RAM. The 1.7B model needs ~11 GB RSS on CPU, so on free Colab use the lite index (0.6B, ~4.5 GB). If startup fails, check `/content/serve.log`; `degraded` with "mock encoder in use" identifies an explicitly selected smoke-test encoder.
+- **First setup is slower.** The cell downloads the lite weights before startup; the server loads them once and stays warm. Later short queries take about a second on the lite model; full APPS problem statements take a few seconds (see [Resources](#resources)).
 - **The link is temporary.** It changes every time the cell runs and stops working when the Colab runtime stops or the cell is interrupted. Anyone holding the link can reach the demo while it runs, so stop the cell when you are done.
 - **The tunnel needs a few seconds to come up.** If the browser says the address cannot be resolved, wait about 30 seconds and refresh.
 - **Logs.** `/content/serve.log` (server) and `/content/cf.log` (tunnel). The cell prints a pointer to `cf.log` if no URL appears within a minute.

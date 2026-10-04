@@ -6,10 +6,44 @@ a curl and from a terminal is the same code path -- including the lineage handli
 The corpus is NEVER encoded here. Only the query is.
 """
 import threading
+import hashlib
+import io
+import logging
+import textwrap
+import tokenize
 import time
 
 from src.runtime_index import (DEFAULT_SERVING_QUERY_TOKENS, RuntimeIndex, load_query_encoder,
                                peak_rss_mb, resolve_index_dir, set_cpu_threads)
+
+
+def normalize_code(text):
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = text.splitlines()
+    protected = set()
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return text.rstrip("\n")
+    for token in tokens:
+        if token.type == tokenize.STRING and token.start[0] != token.end[0]:
+            protected.update(range(token.start[0], token.end[0] + 1))
+        if token.type == tokenize.COMMENT:
+            row, col = token.start
+            lines[row - 1] = lines[row - 1][:col]
+    cleaned = "\n".join(line if i in protected else line.rstrip()
+                        for i, line in enumerate(lines, 1) if line.strip() or i in protected)
+    return cleaned if protected else textwrap.dedent(cleaned)
+
+
+def exact_match_lookup(doc_ids, doc_texts):
+    lookup = {}
+    for doc_id, text in zip(doc_ids, doc_texts):
+        normalized = normalize_code(text)
+        if normalized:
+            digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+            lookup.setdefault(digest, []).append(str(doc_id))
+    return lookup
 
 
 class SearchService:
@@ -58,6 +92,7 @@ class SearchService:
         self._sync_index_flags()
 
     def _sync_index_flags(self):
+        self.exact_matches = exact_match_lookup(self.index.doc_ids, self.index.doc_texts)
         self.versioned = self.index.versions is not None
         self.version_numbers = (sorted({int(v["version"]) for v in self.index.versions})
                                 if self.versioned else [])
@@ -95,6 +130,7 @@ class SearchService:
                 "query_prefix": m.get("query_prefix", ""), "versioned": self.versioned,
                 "chunked": self.chunked, "categorized": self.categorized,
                 "versions": self.version_numbers, "source_root": m.get("source_root"),
+                "encoder_model": getattr(self.encoder, "model_name", None),
                 "device": self.device, "threads": self.thread_info.get("threads"),
                 "cpu_dtype": getattr(self.encoder, "cpu_dtype", None),
                 "int8": getattr(self.encoder, "int8", False),
@@ -207,10 +243,9 @@ class SearchService:
         all_versions=True to let every version compete, or version=N to search only that version.
         A collapsing search asks the index for more candidates than k, because collapsing removes rows
         -- without that, a top-10 of one lineage's versions would collapse to a single result."""
-        qvec, encode_ms, cached = self._encode_query(query)
         with self._index_lock:
-            return self._rank(query, qvec, encode_ms, k, version, all_versions, preview_chars,
-                              candidate_factor, category, cached)
+            return self._rank(query, None, 0, k, version, all_versions, preview_chars,
+                              candidate_factor, category)
 
     def _rank(self, query, qvec, encode_ms, k, version, all_versions, preview_chars,
               candidate_factor, category, cached=False):
@@ -230,7 +265,23 @@ class SearchService:
                 raise ValueError(f"no documents tagged {category!r} in {self.index.dir}")
         t0 = time.time()
         depth = max(k * candidate_factor, k + 20) if (collapse or category) else k
-        hits = self.index.search(qvec, k=depth, rows=rows)
+        exact = []
+        if qvec is None:
+            digest = hashlib.sha256(normalize_code(query).encode("utf-8")).hexdigest()
+            allowed = None if rows is None else set(int(r) for r in rows)
+            for doc_id in self.exact_matches.get(digest, ()):
+                row = self.index.row_of(doc_id)
+                if allowed is None or row in allowed:
+                    exact.append((doc_id, 1.0, row))
+        if exact:
+            logging.getLogger("uvicorn.error").info("exact match found")
+            hits = exact[:depth]
+        else:
+            if qvec is None:
+                qvec, encode_ms, cached = self._encode_query(query)
+                t["encode_query_ms"] = encode_ms
+                t0 = time.time()
+            hits = self.index.search(qvec, k=depth, rows=rows)
         if collapse:
             hits = collapse_lineages(hits, self.index, k=k)
         hits = hits[:k]
@@ -241,7 +292,7 @@ class SearchService:
             out.append(dict({"rank": rank, "doc_id": doc_id, "score": round(float(score), 6),
                              "preview": text[:preview_chars],
                              "truncated": len(text) > preview_chars}, **self._meta_for(row)))
-        return {"query": query, "k": k, "collapsed_lineages": collapse,
+        return {"query": query, "k": k, "exact_match": bool(exact), "collapsed_lineages": collapse,
                 "version_filter": version, "category_filter": category, "hits": out,
                 "timings_ms": dict({kk: round(vv, 2) for kk, vv in t.items()}, cached=bool(cached))}
 

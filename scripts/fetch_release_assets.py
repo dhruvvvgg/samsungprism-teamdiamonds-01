@@ -92,35 +92,70 @@ def sha256_of_file(path: Path) -> str:
     return h.hexdigest()
 
 
-def is_directory_non_empty(path: Path) -> bool:
-    if not path.is_dir():
+INDEX_FILES = ("manifest.json", "embeddings.npy", "doc_ids.json", "corpus_texts.json")
+EXPECTED_FILES = {
+    "runtime_index.zip": INDEX_FILES,
+    "runtime_index_lite.zip": INDEX_FILES,
+    "history_index.zip": INDEX_FILES + ("versions.json", "chunks.json"),
+}
+
+
+def extraction_root(z, dest, target):
+    files = [i for i in z.infolist() if not i.is_dir()]
+    root = dest if target and files and all(i.filename.startswith(target.name + "/")
+                                           for i in files) else (target or dest)
+    for info in files:
+        if not (root / info.filename).resolve().is_relative_to(root.resolve()):
+            raise ValueError(f"Unsafe archive path: {info.filename}")
+    return root, files
+
+
+def extracted_files_valid(archive, dest, target):
+    with zipfile.ZipFile(archive) as z:
+        root, files = extraction_root(z, dest, target)
+        if not files:
+            return False
+        for name in EXPECTED_FILES.get(archive.name, ()):
+            if not (target / name).is_file():
+                return False
+        for info in files:
+            path = root / info.filename
+            if not path.is_file() or path.stat().st_size != info.file_size:
+                return False
+            with z.open(info) as f:
+                hasher = hashlib.sha256()
+                for block in iter(lambda: f.read(65536), b""):
+                    hasher.update(block)
+                expected = hasher.hexdigest()
+            if sha256_of_file(path) != expected:
+                return False
+    return True
+
+
+def ensure_extracted(archive, dest, target, force=False):
+    try:
+        if force or not extracted_files_valid(archive, dest, target):
+            extract_zip(archive, dest, target)
+        if not extracted_files_valid(archive, dest, target):
+            raise ValueError("extracted files are missing or corrupt")
+        return True
+    except (OSError, ValueError, zipfile.BadZipFile, KeyError) as exc:
+        sys.stderr.write(f"[ERROR] {archive.name}: {exc}\n")
         return False
-    return any(path.iterdir())
 
 
-def fetch_asset(name: str, spec: dict, dest: Path, repo: str, tag: str, base_url: str = None) -> bool:
+def fetch_asset(name: str, spec: dict, dest: Path, repo: str, tag: str, base_url: str = None, force_refetch: bool = False) -> bool:
     expected_sha = spec["sha256"]
     is_zip = spec["is_zip"]
     target_dir_name = spec.get("target_dir")
     unzip_target = (dest / target_dir_name) if target_dir_name else None
     dest_file = dest / name
 
-    # Idempotency check 1: Unpacked directory already exists and is non-empty
-    if is_zip and unzip_target and is_directory_non_empty(unzip_target):
-        print(f"[SKIP] {name}: target directory '{unzip_target}' already exists and is non-empty.")
-        return True
-
-    # Idempotency check 2: Archive or file already exists with matching checksum
-    if dest_file.exists():
+    if not force_refetch and dest_file.is_file():
         actual_sha = sha256_of_file(dest_file)
         if actual_sha.lower() == expected_sha.lower():
-            print(f"[SKIP] {name}: file already exists and matches expected SHA-256.")
-            if is_zip and unzip_target and not is_directory_non_empty(unzip_target):
-                print(f"[EXTRACT] Extracting {name} to {dest}...")
-                extract_zip(dest_file, dest, unzip_target)
-            return True
-        else:
-            print(f"[WARN] {name} exists but has mismatched checksum ({actual_sha[:12]}... != {expected_sha[:12]}...). Re-downloading.")
+            return ensure_extracted(dest_file, dest, unzip_target) if is_zip else True
+        print(f"[WARN] {name}: checksum mismatch; re-downloading.")
 
     # Determine URL
     if base_url:
@@ -172,7 +207,7 @@ def fetch_asset(name: str, spec: dict, dest: Path, repo: str, tag: str, base_url
     print(f"[VERIFIED] {name} SHA-256 matches expected: {expected_sha[:12]}...")
 
     if is_zip:
-        extract_zip(dest_file, dest, unzip_target)
+        return ensure_extracted(dest_file, dest, unzip_target, force=True)
 
     return True
 
@@ -180,13 +215,7 @@ def fetch_asset(name: str, spec: dict, dest: Path, repo: str, tag: str, base_url
 def extract_zip(zip_path: Path, dest: Path, default_target: Path = None):
     """Safely extract zip archive to dest or subfolder."""
     with zipfile.ZipFile(zip_path, "r") as z:
-        names = z.namelist()
-        # If all members share a root directory (e.g. 'runtime_index/'), extract directly to dest
-        has_common_prefix = len(names) > 0 and all("/" in name for name in names if not name.endswith("/"))
-        if has_common_prefix:
-            extract_dir = dest
-        else:
-            extract_dir = default_target if default_target else dest
+        extract_dir, _ = extraction_root(z, dest, default_target)
         extract_dir.mkdir(parents=True, exist_ok=True)
         z.extractall(extract_dir)
         print(f"[EXTRACTED] {zip_path.name} -> {extract_dir}")
@@ -196,6 +225,10 @@ def main():
     parser = argparse.ArgumentParser(description="Fetch and verify release assets for Samsung PRISM Hackathon.")
     parser.add_argument("--assets", choices=["all", "indexes", "results"], default="all",
                         help="Which subset of assets to download (default: all)")
+    parser.add_argument("--force-refetch", action="store_true",
+                        help="Download again and re-extract even if cached files verify")
+    parser.add_argument("--index", choices=["full", "lite", "history"],
+                        help="Fetch only this index when --assets indexes is used")
     parser.add_argument("--dest", type=Path, default=Path("."),
                         help="Destination directory (default: repo root '.')")
     parser.add_argument("--tag", default=DEFAULT_TAG,
@@ -215,13 +248,18 @@ def main():
 
     assets_to_fetch = []
     for name, spec in ASSET_SPECS.items():
+        if args.index and args.assets == "indexes":
+            selected = {"full": "runtime_index.zip", "lite": "runtime_index_lite.zip",
+                        "history": "history_index.zip"}[args.index]
+            if name != selected:
+                continue
         if args.assets == "all" or spec["category"] == args.assets:
             assets_to_fetch.append((name, spec))
 
     print(f"=== Fetching {len(assets_to_fetch)} assets (mode: {args.assets}) to {dest} ===")
     failed = []
     for name, spec in assets_to_fetch:
-        success = fetch_asset(name, spec, dest, args.repo, args.tag, args.base_url)
+        success = fetch_asset(name, spec, dest, args.repo, args.tag, args.base_url, args.force_refetch)
         if not success:
             failed.append(name)
 

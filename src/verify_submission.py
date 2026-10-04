@@ -76,14 +76,33 @@ def load_qrels(args):
     return qrels
 
 
-def check_hashes(checksums, problems, notes):
+def recorded_path(value, base_dir=None):
+    path = Path(value)
+    parts = path.parts
+    for anchor in ("outputs", "runtime_index"):
+        if anchor in parts:
+            path = Path(*parts[parts.index(anchor):])
+            break
+    else:
+        if path.is_absolute() and base_dir is None:
+            return path
+        path = Path(str(value).lstrip("/"))
+    base = Path.cwd() if base_dir is None else Path(base_dir)
+    resolved = (base / path).resolve()
+    if not resolved.is_relative_to(base.resolve()):
+        raise ValueError(f"Checksum path escapes --base-dir: {value}")
+    return resolved
+
+
+def check_hashes(checksums, problems, notes, base_dir=None, results=None, rankings=None):
     from src.runtime_index import sha256_file
     for key in ("results", "rankings"):
         rec = checksums.get(key)
         if not rec:
             notes.append(f"checksums file has no {key!r} entry")
             continue
-        path = Path(rec["path"])
+        override = results if key == "results" else rankings
+        path = Path(override) if override is not None else recorded_path(rec["path"], base_dir)
         if not path.exists():
             problems.append(f"{key}: file recorded at {path} is missing")
             continue
@@ -95,7 +114,7 @@ def check_hashes(checksums, problems, notes):
                             f"{rec['sha256'][:16]}... ({path}). The file changed after the run.")
     idx = checksums.get("runtime_index")
     if idx:
-        d = Path(idx["dir"])
+        d = recorded_path(idx["dir"], base_dir)
         for name, rec in idx["files"].items():
             path = d / name
             if not path.exists():
@@ -108,9 +127,10 @@ def check_hashes(checksums, problems, notes):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--rankings", default=str(ROOT / "outputs" / "appsretrieval_rankings.json"))
-    ap.add_argument("--results", default=str(ROOT / "outputs" / "appsretrieval_results.json"))
-    ap.add_argument("--checksums", default=str(ROOT / "outputs" / "submission_checksums.json"))
+    ap.add_argument("--base-dir", type=Path, default=Path.cwd())
+    ap.add_argument("--rankings", default="outputs/appsretrieval_rankings.json")
+    ap.add_argument("--results", default="outputs/appsretrieval_results.json")
+    ap.add_argument("--checksums", default="outputs/submission_checksums.json")
     ap.add_argument("--qrels", default=None,
                     help="qrels JSON {qid: {doc_id: gain}}; default is the official test qrels")
     ap.add_argument("--k", type=int, default=10)
@@ -119,6 +139,10 @@ def main():
     ap.add_argument("--confirm-test", action="store_true",
                     help="acknowledge reading the official test qrels (no retrieval is run)")
     a = ap.parse_args()
+    for field in ("rankings", "results", "checksums", "qrels"):
+        value = getattr(a, field)
+        if value and not Path(value).is_absolute():
+            setattr(a, field, str(a.base_dir / value))
     problems, notes = [], []
 
     rpath = Path(a.rankings)
@@ -166,7 +190,8 @@ def main():
     cpath = Path(a.checksums)
     if cpath.exists():
         print(f"\n[verify] checksums from {cpath.name}:")
-        check_hashes(json.loads(cpath.read_text(encoding="utf-8")), problems, notes)
+        check_hashes(json.loads(cpath.read_text(encoding="utf-8")), problems, notes,
+                     a.base_dir, a.results, a.rankings)
     else:
         notes.append(f"no checksums file at {cpath}; skipped hash verification")
 

@@ -8,6 +8,7 @@ Usage:
 """
 import argparse
 import os
+import json
 from pathlib import Path
 import sys
 
@@ -31,17 +32,21 @@ def detect_available_indexes(root: Path):
     return available
 
 
-def check_neural_weights_available(model_id: str) -> bool:
-    """Check if model weights are present in local HuggingFace cache without triggering a download."""
+def check_neural_weights_available(model_id: str, revision=None) -> bool:
     try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-        from huggingface_hub import try_to_load_from_cache, _CACHED_NO_EXIST
-        cached = try_to_load_from_cache(model_id, "config.json")
-        if cached is not None and not isinstance(cached, type(_CACHED_NO_EXIST)):
-            return True
+        from huggingface_hub import snapshot_download
+        cache = Path(snapshot_download(model_id, revision=revision, local_files_only=True))
+        if not (cache / "config.json").is_file():
+            return False
+        for name in ("model.safetensors", "pytorch_model.bin"):
+            if (cache / name).is_file():
+                return True
+        for name in ("model.safetensors.index.json", "pytorch_model.bin.index.json"):
+            if (cache / name).is_file():
+                shards = json.loads((cache / name).read_text())["weight_map"].values()
+                return bool(shards) and all((cache / shard).is_file() for shard in shards)
         return False
-    except Exception:
+    except Exception:  # noqa: BLE001  cache lookup must fail closed
         return False
 
 
@@ -58,11 +63,6 @@ def main():
     # Detect available indexes
     available = detect_available_indexes(ROOT)
     available_names = [name for name, _ in available]
-
-    if not available_names:
-        print("[WARNING] No precomputed indexes found in repository root.")
-        print("          Run: python scripts/fetch_release_assets.py --assets indexes")
-        print("          to download the official submission indexes.\n")
 
     # Set ALLOWED_INDEXES
     if not os.environ.get("ALLOWED_INDEXES"):
@@ -89,24 +89,26 @@ def main():
     if not os.environ.get("SEARCH_DEVICE"):
         os.environ["SEARCH_DEVICE"] = "cpu"
 
-    # Determine model and encoder mode
-    target_model = "FreedomIntelligence/F2LLM-v2-1.7B" if chosen_index == "full" else "FreedomIntelligence/F2LLM-v2-0.6B"
-    if args.mock or os.environ.get("MOCK_ENCODER") == "1":
-        os.environ["MOCK_ENCODER"] = "1"
-        encoder_status = "Mock Hashing Query Encoder (MOCK_ENCODER=1)"
-    else:
-        has_weights = check_neural_weights_available(target_model)
-        if has_weights:
-            encoder_status = f"Neural Encoder ({target_model} from local HF cache)"
-        else:
-            os.environ["MOCK_ENCODER"] = "1"
-            encoder_status = f"Mock Hashing Query Encoder (MOCK_ENCODER=1 - weights for {target_model} not cached)"
-            print("=" * 72)
-            print(f"[INFO] Local cache does not contain weights for '{target_model}'.")
-            print("       Serving with MOCK_ENCODER=1 (no model download, zero network traffic).")
-            print("       Queries will be answered instantly via deterministic hashing.")
-            print("       To serve with real neural weights, run in an environment with GPU/HF cache.")
-            print("=" * 72)
+    from src.runtime_index import resolve_index_dir
+    index_dir = resolve_index_dir(chosen_index)
+    required = ("manifest.json", "embeddings.npy", "doc_ids.json", "corpus_texts.json")
+    missing = [str(index_dir / name) for name in required if not (index_dir / name).is_file()]
+    if missing:
+        parser.error("Missing index files: " + ", ".join(missing) +
+                     ". Run python scripts/fetch_release_assets.py --assets indexes. "
+                     "--mock skips weights only; it still requires an index.")
+    manifest = json.loads((index_dir / "manifest.json").read_text())
+    target_model = manifest["model"]
+    if not args.mock and (target_model == "mock/hashing-encoder" or
+                         not check_neural_weights_available(target_model, manifest.get("revision"))):
+        parser.error(f"Missing neural weights for {target_model} at revision "
+                     f"{manifest.get('revision')!r}. Download the model first, "
+                     "or explicitly pass --mock for hashing-only smoke tests.")
+    os.environ["MOCK_ENCODER"] = "1" if args.mock else "0"
+    os.environ["FAIL_CLOSED_STARTUP"] = "1"
+    if not args.mock:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+    encoder_status = "mock/hashing-encoder" if args.mock else f"Neural Encoder ({target_model})"
 
     # Print banner
     print()

@@ -109,6 +109,9 @@ def main():
                  "source": f"src/build_index.py --source {a.source}",
                  "created": time.strftime("%Y-%m-%d %H:%M:%S")})
     manifest = write_index(out_dir, emb, doc_ids, doc_texts, meta, chunks=chunks)
+    from src.search_service import exact_match_lookup
+    from src.utils_io import write_json_atomic
+    write_json_atomic(out_dir / "exact_matches.json", exact_match_lookup(doc_ids, doc_texts))
     print(f"[build] encoded {len(doc_texts)} docs in {encode_s:.1f}s "
           f"({len(doc_texts) / max(encode_s, 1e-9):.1f} docs/s)")
     print(f"[build] wrote {out_dir}: {manifest['n_docs']} x {manifest['dim']} fp16")
