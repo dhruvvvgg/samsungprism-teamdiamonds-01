@@ -25,7 +25,7 @@
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
+    :root {
       --ink: #eef0f6; --muted: #9aa2b6; --line: #262b38; --paper: #0b0c10; --white: #14161c; --chip: #1e212a;
       --blue-text: #93a6ff; --code-bg: #0f1116; --shadow: 0 18px 50px rgba(0, 0, 0, .45);
       --shadow-sm: 0 12px 30px rgba(0, 0, 0, .4); --ok: #52c98a; --warn: #f0a552;
@@ -236,7 +236,6 @@
             <select id="k"><option>3</option><option selected>5</option><option>10</option><option>20</option></select>
           </label>
           <span class="sep" aria-hidden="true"></span>
-          <button type="button" class="ghost" id="histBtn">Version history&hellip;</button>
           <button type="button" class="ghost" id="reindexBtn" style="display:none"
                   title="Re-scan this index's source folder and re-encode only the chunks that changed">Update index</button>
         </div>
@@ -285,7 +284,7 @@
   <section class="results" aria-live="polite">
     <div class="results-head">
       <h2 class="results-title">Ranked <span>evidence</span></h2>
-      <div class="results-meta"><span id="resultCount"></span><br>ordered by embedding similarity</div>
+      <div class="results-meta"><span id="resultCount"></span><br>ordered by retrieval score</div>
     </div>
     <div class="meta" id="meta"></div>
     <div id="results"></div>
@@ -410,12 +409,6 @@ var FRIENDLY_INDEX_LABELS = {
   "versions": "Click 40-commit History"
 };
 
-var FALLBACK_INDEXES = [
-  { name: "full", label: "F2LLM-1.7B Full", available: true, versioned: false },
-  { name: "lite", label: "F2LLM-0.6B Lite", available: true, versioned: false },
-  { name: "history", label: "Click 40-commit History", available: true, versioned: true }
-];
-
 var VERSIONED_TOOLTIP = "Available on versioned indexes like Click History";
 
 function middleEllipsis(path, maxLen) {
@@ -437,7 +430,6 @@ async function loadCategories() {
   var sel = el("cat");
   sel.innerHTML = '<option value="">any</option>';
   var wrap = sel.parentNode;
-  var ix = indexList[el("index").value] || {};
   if (!indexInfo || !indexInfo.categorized) {
     sel.disabled = true;
     if (wrap) { wrap.style.display = "none"; wrap.title = "No categories available for this index"; }
@@ -445,6 +437,7 @@ async function loadCategories() {
   }
   try {
     var r = await fetch("/categories?index=" + encodeURIComponent(el("index").value));
+    if (!r.ok) { throw new Error("Categories unavailable"); }
     var data = await r.json();
     var families = Object.keys(data.families || {});
     families.forEach(function (fam) {
@@ -453,7 +446,7 @@ async function loadCategories() {
       sel.appendChild(o);
     });
     if (families.length) {
-      sel.disabled = false;
+      sel.disabled = el("agent").checked;
       if (wrap) { wrap.style.display = ""; wrap.title = ""; }
     } else {
       sel.disabled = true;
@@ -500,7 +493,6 @@ function syncIndexCapabilities() {
 
   var allv = el("allv");
   var ver = el("ver");
-  var histBtn = el("histBtn");
   var cmpPanel = el("cmpPanel");
 
   if (!isVersioned) {
@@ -508,8 +500,6 @@ function syncIndexCapabilities() {
     if (allv.parentNode) { allv.parentNode.classList.add("off"); allv.parentNode.title = VERSIONED_TOOLTIP; }
     ver.disabled = true;
     if (ver.parentNode) { ver.parentNode.classList.add("off"); ver.parentNode.title = VERSIONED_TOOLTIP; }
-    histBtn.disabled = true;
-    histBtn.title = VERSIONED_TOOLTIP;
     cmpPanel.style.display = "none";
   } else {
     var on = el("agent").checked;
@@ -519,8 +509,6 @@ function syncIndexCapabilities() {
       ver.disabled = false;
       if (ver.parentNode) { ver.parentNode.classList.remove("off"); ver.parentNode.title = ""; }
     }
-    histBtn.disabled = false;
-    histBtn.title = "";
     cmpPanel.style.display = "";
   }
 }
@@ -538,6 +526,7 @@ function syncAgentMode() {
     : "";
   if (!on) {
     syncIndexCapabilities();
+    loadCategories();
   }
 }
 el("agent").addEventListener("change", syncAgentMode);
@@ -576,13 +565,18 @@ async function loadIndexes() {
       indexesData = await r.json();
     }
   } catch (e) {
-    // Falls back to hardcoded list if endpoint missing
+    // Report discovery failure instead of advertising unverified indexes.
   }
 
-  var list = (indexesData && indexesData.indexes && indexesData.indexes.length)
-    ? indexesData.indexes
-    : FALLBACK_INDEXES;
-  var def = (indexesData && indexesData.default) ? indexesData.default : "full";
+  var list = (indexesData && indexesData.indexes) || [];
+  var def = indexesData && indexesData.default;
+  if (!list.length) {
+    setStatus("No indexes available; index discovery failed or returned an empty list.", "err");
+    el("go").disabled = true;
+    el("reindexBtn").style.display = "none";
+    el("cmpPanel").style.display = "none";
+    return;
+  }
 
   list.forEach(function (ix) {
     indexList[ix.name] = ix;
@@ -610,6 +604,7 @@ async function loadIndexes() {
     }
   }
 
+  el("go").disabled = !sel.value;
   refreshHealth();
   syncReindexButton();
   syncComparePanel();
@@ -724,7 +719,8 @@ async function refreshHealth() {
       var bits = [name, h.index.model, h.index.n_docs + " docs", "dim " + h.index.dim,
                   h.index.device + (h.index.threads ? " / " + h.index.threads + " threads" : "")];
       if (h.index.max_query_tokens) { bits.push("query cap " + h.index.max_query_tokens); }
-      setStatus(bits.join("  \u00b7  "));
+      setStatus((h.status === "degraded" ? "service degraded: " + (h.reason || h.error || "mock encoder") + " · " : "")
+        + bits.join("  \u00b7  "), h.status === "degraded" ? "err" : "");
       el("modeNote").textContent = h.index.versioned
         ? (h.index.chunked
             ? "Git-history index: every version of every function. Results show file:start-end and the commit; lineages collapse to their best version unless 'all versions' is ticked."
@@ -762,6 +758,7 @@ async function refreshHealth() {
 // meta part    -> an extra item on the timing line
 // banner       -> HTML shown above the results
 var TAG_PARTS = [
+  function (h) { return h.exact_match && h.score === 1 ? "exact match" : ""; },
   function (h) { return h.version !== undefined ? "v" + h.version : ""; },
   function (h) { return h.commit_short ? "commit " + h.commit_short : ""; },
   function (h) { return h.change || ""; },
@@ -875,7 +872,7 @@ function hitTitle(h) {
     + '<span class="rank">' + ("0" + h.rank).slice(-2) + '</span>'
     + '<span class="titlemain"><span class="loc" title="' + escapeAttr(rawPath) + '">' + escapeHtml(mainTitle) + '</span></span>'
     + '<span class="badges">'
-    + '<span class="badge score" title="Cosine similarity between the query and this snippet\'s embeddings. Only meaningful for ordering results: it is not a percentage, a probability or a confidence.">'
+    + '<span class="badge score" title="Retrieval score: normalized code equality is 1.0 when marked exact match; otherwise cosine similarity. Only meaningful for ordering results: it is not a percentage, a probability or a confidence.">'
     + "similarity score " + h.score.toFixed(4) + "</span>"
     + '<button type="button" class="copy" data-copy="' + escapeAttr(h.doc_id) + '">copy</button>'
     + '</span>'
@@ -917,16 +914,14 @@ function render(data) {
     return Object.assign({}, g.best, { rank: g.rank, _others: g.others });
   }) : data.hits;
   items.forEach(function (h) {
+    h = Object.assign({}, h, { exact_match: Boolean(data.exact_match && h.score === 1) });
     out += '<div class="hit" data-doc="' + escapeAttr(h.doc_id) + '" title="Click to open the full code">' + hitTitle(h)
         + "<pre>" + highlightPython(h.preview + (h.truncated ? "\n..." : "")) + "</pre>"
         + composeParts(HIT_SECTIONS, h).join("") + "</div>";
   });
   el("results").innerHTML = out || emptyBox("No results. Try rephrasing the query, clearing the version or category filter, or raising top-k.");
   el("resultCount").textContent = items.length + (items.length === 1 ? " match" : " matches");
-  var t = data.timings_ms || {};
-  var line = ["query encode " + (t.encode_query_ms || 0).toFixed(1) + " ms",
-              "search " + (t.search_ms || 0).toFixed(2) + " ms"];
-  if (data.total_ms) { line.push("total " + data.total_ms.toFixed(0) + " ms"); }
+  var line = [];
   if (data.collapsed_lineages) { line.push("lineages collapsed"); }
   if (data.version_filter !== null && data.version_filter !== undefined) {
     line.push("version " + data.version_filter + " only");
@@ -963,6 +958,8 @@ function copyText(text) {
 }
 
 async function openViewer(docId) {
+  viewerText = "";
+  el("vwCopy").disabled = true;
   el("viewer").style.display = "";
   el("vwTitle").textContent = docId;
   el("vwTag").textContent = "";
@@ -973,6 +970,7 @@ async function openViewer(docId) {
     var d = await r.json();
     if (!r.ok) { el("vwBody").innerHTML = problemBox(r.status, d.detail || r.statusText); return; }
     viewerText = d.text;
+    el("vwCopy").disabled = false;
     el("vwTitle").textContent = (d.has_source_file && d.location) ? d.location : d.doc_id;
     var tags = ["document " + d.doc_id, d.n_lines + " line" + (d.n_lines === 1 ? "" : "s")];
     if (d.version !== undefined) { tags.push("v" + d.version); }
@@ -1096,7 +1094,7 @@ el("form").addEventListener("submit", async function (ev) {
   var v = el("ver").value.trim();
   if (v !== "") { body.version = parseInt(v, 10); }
   var chosen = indexList[el("index").value];
-  if (chosen && chosen.available === false) {
+  if (!chosen || chosen.available === false) {
     el("meta").textContent = "";
     el("results").innerHTML = problemBox(404, "index " + el("index").value + " is not built on this server");
     return;
@@ -1132,38 +1130,6 @@ el("form").addEventListener("submit", async function (ev) {
   } finally {
     el("go").disabled = false;
     refreshHealth();
-  }
-});
-
-el("histBtn").addEventListener("click", async function () {
-  var hint = (indexInfo && indexInfo.kind === "versioned" && indexInfo.chunked)
-    ? "Lineage id, e.g. pkg/tools.py::add"
-    : "Snippet id (versioned index), e.g. snip0007";
-  var id = prompt(hint);
-  if (!id) { return; }
-  el("results").innerHTML = "";
-  el("meta").textContent = "loading history\u2026";
-  try {
-    var r = await fetch("/history/" + encodeURIComponent(id)
-                        + "?index=" + encodeURIComponent(el("index").value));
-    var data = await r.json();
-    if (!r.ok) {
-      el("results").innerHTML = problemBox(r.status, data.detail || r.statusText);
-      el("meta").textContent = "";
-      return;
-    }
-    var out = "";
-    data.versions.forEach(function (v) {
-      out += '<div class="hit"><h3><span class="loc">' + escapeHtml(v.doc_id) + "</span>"
-          + '<span class="tag">' + escapeHtml(v.mutation || "") + " · hash " + escapeHtml(v.content_hash)
-          + '</span><span class="score">v' + v.version + "</span></h3><pre>"
-          + highlightPython(v.preview) + "</pre></div>";
-    });
-    el("results").innerHTML = out;
-    el("meta").innerHTML = '<span class="timing">' + data.n_versions
-        + " versions of " + escapeHtml(data.snippet_id) + ", oldest first</span>";
-  } catch (e) {
-    el("results").innerHTML = '<div class="err">' + escapeHtml(String(e)) + "</div>";
   }
 });
 

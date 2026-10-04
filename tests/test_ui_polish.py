@@ -287,7 +287,7 @@ def test_the_highlighter_scans_numbers_and_names_in_one_pass():
 
 
 def test_every_control_the_script_uses_still_exists():
-    for el_id in ("q", "go", "examples", "index", "k", "allv", "ver", "cat", "agent", "sugg", "histBtn",
+    for el_id in ("q", "go", "examples", "index", "k", "allv", "ver", "cat", "agent", "sugg",
                   "reindexBtn", "modeNote", "agentNote", "cmpPanel", "viewer", "meta", "results", "status",
                   "qInfo", "resultCount"):
         assert f'id="{el_id}"' in HTML, el_id
@@ -312,7 +312,7 @@ def test_hero_has_four_fact_cards_and_no_logo_mark():
 def test_the_search_heading_and_copy():
     assert "What do you want to find?" in HTML
     assert "What are you trying to build" not in HTML
-    assert "Version history" in HTML and 'id="histBtn"' in HTML
+    assert 'id="histBtn"' not in HTML and "async function showHistory" in HTML
 
 
 def test_the_search_bar_grows_with_its_content():
@@ -324,7 +324,7 @@ def test_below_the_hero_there_is_only_a_headline_and_a_search_bar():
     ask = HTML[HTML.index('class="ask"'):HTML.index('class="results"')]
     visible = ask.split('<details class="adv">')[0]
     assert "What do you want to find?" in visible and 'id="q"' in visible and 'id="go"' in visible
-    for hidden_inside in ('id="examples"', 'id="index"', 'id="k"', 'id="histBtn"', 'id="allv"'):
+    for hidden_inside in ('id="examples"', 'id="index"', 'id="k"', 'id="allv"'):
         assert hidden_inside not in visible, hidden_inside
         assert hidden_inside in ask
     assert "Options and examples" in ask
@@ -349,12 +349,13 @@ def test_result_card_has_flex_row_middle_ellipsis_and_subline():
     assert "hit-subline" in HTML
 
 
-def test_dynamic_index_selector_has_friendly_labels_and_fallback():
+def test_dynamic_index_selector_requires_server_discovery():
     assert "FRIENDLY_INDEX_LABELS" in HTML
     assert "F2LLM-1.7B Full" in HTML
     assert "F2LLM-0.6B Lite" in HTML
     assert "Click 40-commit History" in HTML
-    assert "FALLBACK_INDEXES" in HTML
+    assert "FALLBACK_INDEXES" not in HTML
+    assert "No indexes available; index discovery failed or returned an empty list." in HTML
     assert "not on disk" in HTML
 
 
